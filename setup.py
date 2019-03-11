@@ -2,7 +2,7 @@
 from setuptools import setup
 
 setup(name='changesets2CSV',
-      version='0.1.0',
+      version='0.2.0',
       description='OSM Changesets CSV writer',
       url='https://github.com/KaartGroup/Changesets2CSV',
       author='Kaart',
