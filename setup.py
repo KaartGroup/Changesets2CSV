@@ -8,4 +8,4 @@ setup(name='changeset2CSV',
       author='Kaart',
       license='MIT',
       python_requires='>=2.7.0,<3.0.0',
-      scripts=['changeset2CSV/changeset2CSV.py'])
+      scripts=['changeset2CSV/changeset2CSV'])
