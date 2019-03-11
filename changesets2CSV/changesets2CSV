@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-''' changeset2CSV
+''' changesets2CSV
 
 This tool will build out a CSV of changeset info queried based on the given parameters
 
@@ -16,7 +16,7 @@ import argparse
 import urllib
 
 
-def changeset2Csv(file_name, user=None, start_time=None, end_time=None, bbox=None):
+def changesets2Csv(file_name, user=None, start_time=None, end_time=None, bbox=None):
     query_params = {}
     if user:
         if user.isdigit():
@@ -36,18 +36,12 @@ def changeset2Csv(file_name, user=None, start_time=None, end_time=None, bbox=Non
         result = urllib.urlopen(api_url).read()
         root = ET.fromstring(result)
         sets = root.findall('changeset')
-        print(sets[0].get('closed_at'))
-        print(sets[-1].get('closed_at'))
         changesets.extend(sets)
 
         while len(sets) >= 100:
-            print(sets[0].get('id'))
-            print("TRUE")
             new_end = sets[-1].get('closed_at').split("T")[0]
-            print("\nNEW END: " + new_end)
             start_time = "1970-01-01" if not start_time else start_time
             query_params['time'] = ','.join([start_time, new_end])
-            print(query_params)
             api_url = "https://api.openstreetmap.org/api/0.6/changesets?" + urllib.urlencode(query_params)
             result = urllib.urlopen(api_url).read()
             root = ET.fromstring(result)
@@ -62,7 +56,6 @@ def changeset2Csv(file_name, user=None, start_time=None, end_time=None, bbox=Non
         csv_writer = csv.DictWriter(f, fieldnames=fieldnames)
         url = "https://www.openstreetmap.org/changeset/{}"
 
-        # root = ET.fromstring(changeset)
         csv_writer.writeheader()
         for item in changesets:
             changeset = {'ID': item.get('id'),
@@ -98,5 +91,5 @@ if __name__ == "__main__":
     if not ((args.user or args.bbox) or (args.start_time and args.end_time)):
         parser.error('No query parameters supplied: add --user, --bbox, or --start_time and --end_time.')
 
-    if not changeset2Csv(args.output, args.user, args.start_time, args.end_time, args.bbox):
-        print("There was an error creating the csv. Please contact the developer for assistance.")
+    if not changesets2Csv(args.output, args.user, args.start_time, args.end_time, args.bbox):
+        print("There was an error creating the csv. Please contact the developer for assistance (zack@kaartgroup.com).")
