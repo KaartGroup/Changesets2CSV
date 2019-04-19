@@ -32,8 +32,12 @@ def changesets2Csv(file_name, user=None, start_time=None, end_time=None, bbox=No
 
     changesets = []
     try:
-        api_url = "https://api.openstreetmap.org/api/0.6/changesets?" + urllib.urlencode(query_params)
-        result = urllib.urlopen(api_url).read()
+        try:
+            api_url = "https://api.openstreetmap.org/api/0.6/changesets?" + urllib.parse.urlencode(query_params)
+            result = urllib.request.urlopen(api_url).read()
+        except AttributeError:
+            api_url = "https://api.openstreetmap.org/api/0.6/changesets?" + urllib.urlencode(query_params)
+            result = urllib.urlopen(api_url).read()
         root = ET.fromstring(result)
         sets = root.findall('changeset')
         changesets.extend(sets)
