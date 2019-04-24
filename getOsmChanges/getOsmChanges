@@ -27,7 +27,10 @@ commonEnd = "_out.csv"
 cacheDir = "cache"
 
 def readUsers(userDirectory):
-    jsonUsers = glob.glob(userDirectory + os.sep + '*.json')
+    if os.path.isdir(userDirectory):
+        jsonUsers = glob.glob(userDirectory + os.sep + '*.json')
+    else:
+        jsonUsers = [userDirectory]
     users = []
     for jsonUserFile in jsonUsers:
         with open(jsonUserFile) as json_file:
@@ -199,7 +202,7 @@ if __name__ == "__main__":
     ''' Set up arguments '''
     parser = argparse.ArgumentParser(description="Create spreadsheet file with a variety of users")
     parser.add_argument('-o', '--output', help="Location and name of the .ods file to create", default="Group.ods")
-    parser.add_argument('-u', '--users', help="A JSON formatted file with users and usernames. For an example, use --json_help", default="users")
+    parser.add_argument('-u', '--users', help="A directory with JSON formatted file with users and usernames or just one file. For an example, use --json_help", default="users")
     parser.add_argument('--json_help', help="Print an example JSON file", action='store_true')
     parser.add_argument('--cache_dir', help="The directory to cache the csv files", default="cache")
     args = parser.parse_args()
