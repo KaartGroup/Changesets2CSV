@@ -15,8 +15,16 @@ import csv
 import argparse
 import urllib
 
+__all__ = ['changesets2Csv']
 
 def changesets2Csv(file_name, user=None, start_time=None, end_time=None, bbox=None):
+    """Get the changesets of a user
+    file_name: The name to save a file to
+    user: The user (UID or display name) to get inormation from
+    start_time: The initial time to start from (YYYY-MM-DD)
+    end_time: The end time (YYYY-MM-DD)
+    bbox: [min_lon min_lat max_lon max_lat]
+    """
     query_params = {}
     if user:
         if user.isdigit():

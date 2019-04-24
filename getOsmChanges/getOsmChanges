@@ -8,7 +8,7 @@ import datetime
 import dateutil.parser
 import json
 import glob
-import changesets2CSV
+from changesets2CSV import changesets2CSV
 import re
 import argparse
 
