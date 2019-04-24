@@ -8,5 +8,5 @@ setup(name='changesets2CSV',
       author='Kaart',
       license='MIT',
       python_requires='>=2.7.0',
-      packages=['changesets2CSV', 'getOsmChanges'],
-      scripts=['changesets2CSV/changesets2CSV', 'getOsmChanges/getOsmChanges'])
+      packages=['changesets2CSV'],
+      scripts=['changesets2CSV/changesets2CSV', 'changesets2CSV/getOsmChanges'])

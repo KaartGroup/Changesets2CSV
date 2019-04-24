@@ -8,7 +8,7 @@ import datetime
 import dateutil.parser
 import json
 import glob
-from changesets2CSV import changesets2CSV
+import changesets2CSV
 import re
 import argparse
 
@@ -22,6 +22,8 @@ import pyexcel, pyexcel_ods
 from collections import OrderedDict
 from string import Template
 
+
+__all__ = ["main",]
 
 commonEnd = "_out.csv"
 cacheDir = "cache"

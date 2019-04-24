@@ -15,7 +15,7 @@ import csv
 import argparse
 import urllib
 
-__all__ = ['changesets2Csv']
+__all__ = ['changesets2Csv',]
 
 def changesets2Csv(file_name, user=None, start_time=None, end_time=None, bbox=None):
     """Get the changesets of a user
