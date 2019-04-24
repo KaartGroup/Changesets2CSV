@@ -7,5 +7,6 @@ setup(name='changesets2CSV',
       url='https://github.com/KaartGroup/Changesets2CSV',
       author='Kaart',
       license='MIT',
-      python_requires='>=2.7.0,<3.0.0',
-      scripts=['changesets2CSV/changesets2CSV'])
+      python_requires='>=2.7.0',
+      packages=['changesets2CSV', 'getOsmChanges'],
+      scripts=['changesets2CSV/changesets2CSV', 'getOsmChanges/getOsmChanges'])

@@ -1,0 +1,226 @@
+#!/usr/bin/env python
+import csv
+import math
+import os
+import subprocess
+import time
+import datetime
+import dateutil.parser
+import json
+import glob
+import changesets2CSV
+import re
+import argparse
+
+try:
+    import urllib.request
+    import urllib.parse
+except ImportError:
+    import urllib
+
+import pyexcel, pyexcel_ods
+from collections import OrderedDict
+from string import Template
+
+
+commonEnd = "_out.csv"
+cacheDir = "cache"
+
+def readUsers(userDirectory):
+    jsonUsers = glob.glob(userDirectory + os.sep + '*.json')
+    users = []
+    for jsonUserFile in jsonUsers:
+        with open(jsonUserFile) as json_file:
+            userInformation = json.load(json_file)
+            users.append(userInformation)
+    return users
+
+
+def requiresPython3(user = None):
+    if user:
+        print("User %s is in unicode", unicode(user))
+    print("Try installing {0} with python 3+".format(os.path.basename(__file__)))
+    exit(-1)
+
+def download(user, lastTimePeriod="7 days"): #TODO finish
+    directory = "osmFiles" + os.sep
+    if not os.path.exists(directory):
+        os.mkdir(directory)
+    elif not os.path.isdir(directory):
+        print("The path is not a directory")
+        exit(-1)
+    apiCall = Template('[out:xml][timeout:90];(node(user:"$user")(newer:"{{date:$lastTimePeriod}}");way(user:"$user")(newer:"{{date:$lastTimePeriod}}");relation(user:"$user")(newer:"{{date:$lastTimePeriod}}"););(._;<;>;);out meta;').substitute(user=user['USER'], lastTimePeriod=lastTimePeriod)
+    try:
+        apiCall = urllib.quote_plus(apiCall)
+        apiCall = "https://overpass-api.de/api/interpreter?data=" + apiCall
+        urllib.urlretrieve(apiCall, directory + user['USER'] + '.osm')
+    except AttributeError:
+        apiCall = urllib.parse.quote_plus(apiCall)
+        apiCall = "https://overpass-api.de/api/interpreter?data=" + apiCall
+        urllib.request.urlretrieve(apiCall, directory + user['USER'] + '.osm')
+    except KeyError:
+        requiresPython3(user = user['USER'])
+
+def run(user, changesetComments, lastWeek):
+    changed = False
+    if not os.path.exists(cacheDir):
+        os.mkdir(cacheDir)
+    elif not os.path.isdir(cacheDir):
+        print("The path is not a directory")
+        exit(-1)
+    datafile = cacheDir + os.sep
+    if '_NAME' in user:
+        datafile += user['_NAME']
+    else:
+        datafile += user['USER']
+    datafile += commonEnd
+    today = datetime.datetime.utcnow()
+
+    if lastWeek:
+        idx = (today.weekday() + 1) % 7 + 7
+        end = today - datetime.timedelta((today.weekday() + 1 ) % 7)
+        end.replace(hour=0, minute=0, second=0)
+    else:
+        idx = (today.weekday() + 1 ) % 7
+        end = datetime.datetime.utcnow()
+    dateStart = today - datetime.timedelta(idx)
+    changeTime = 0
+
+    if os.path.isfile(datafile):
+        changeTime = os.path.getmtime(datafile)
+
+    if (end - datetime.datetime.fromtimestamp(changeTime)) > datetime.timedelta(minutes = 5):
+        changesets2CSV.changesets2Csv(datafile, user=user['USER'], start_time=dateStart.isoformat(), end_time=end.isoformat(), bbox=None)
+        changed = True
+        changeTime = time.time()
+
+    with open (datafile, 'r') as f:
+        csv_reader = csv.DictReader(f)
+        changes = 0
+        changesets = 0
+        discussions = 0
+        changesToday = 0
+        changesWithoutHashTag = 0
+        average = 0
+
+        for row in csv_reader:
+            changes += int(row['Changes'])
+            discussions += int(row['Discussions'])
+            created = dateutil.parser.isoparse(row['Closed at']).replace(tzinfo=None)
+            if (created.date() - today.date()).days == 0:
+                changesToday += int(row['Changes'])
+            changesets += 1
+            average = math.ceil(float(changes)/changesets * 100) / 100
+            comment = row['Comment']
+            hashTag = False
+            for changesetComment in changesetComments:
+                if changesetComment is None:
+                    break
+                if changesetComment in comment:
+                    hashTag = True
+                    break
+            if not hashTag:
+                changesWithoutHashTag += 1
+        changesPerDay = changes / (today.date() - dateStart.date()).days
+        print(user['USER'])
+        print("There were a total of {} changes over {} changesets for an average of {} changes/changeset with {} discussions from {} to {} for an average of {} changes/day".format(changes, changesets, average, discussions, dateStart.date(), end.date(), changesPerDay))
+        print("{} changeset comments without a hashtag".format(changesWithoutHashTag))
+        if lastWeek is False and '_WORKWEEK' in user and '_TARGET_CHANGES' in user:
+            print("{} is at {} out of {} changes for today".format(user['USER'], changesToday, user['_TARGET_CHANGES'] / user['_WORKWEEK']))
+    return changed
+
+def createExcelFile(outputFile = "Group.ods"):
+    files = sorted(glob.glob(cacheDir + os.sep + '*' + commonEnd))
+    data = {}
+    for csvFile in files:
+        name = csvFile.replace(commonEnd, '').replace(cacheDir + os.sep, '')
+        array = []
+        with open(csvFile, 'r') as csvfile:
+            csvreader = csv.reader(csvfile, delimiter=',')
+            for row in csvreader:
+                rrow = []
+                for item in row:
+                    rrow.append(parse(item))
+                array.append(rrow)
+        data[name] = array
+    try:
+        pyexcel_ods.save_data(outputFile, data)
+    except UnicodeDecodeError:
+        requiresPython3()
+
+def parse(item):
+    try:
+        newItem = float(item)
+        return newItem
+    except ValueError:
+        pass
+    try:
+        booleans = ["true", "false"]
+        if item.lower() in booleans:
+            newItem = bool(item)
+            return newItem
+    except ValueError:
+        pass
+    try:
+        if item.startswith("b'"):
+            newItem = item.replace("b'", '', 1)
+            newItem = re.sub(r"(.*)'", r'\1', newItem)
+            newItem = bytes(newItem, "ascii").decode("utf-8")
+            # Not perfected yet
+            #return newItem
+    except (ValueError, TypeError) as e:
+        pass
+    return item
+
+def main(userDirectory, outputFile):
+    users = readUsers(userDirectory)
+    for area in users:
+        if '_CHANGESETCOMMENTS' in area:
+            changesetComments = area['_CHANGESETCOMMENTS']
+        else:
+            changesetComments = [None]
+        changedUser = False
+        if '_LASTWEEK' in area:
+            lastWeek = area['_LASTWEEK']
+        else:
+            lastWeek = True
+        for user in area['USERS']:
+            changed = run(user, changesetComments, lastWeek)
+            if '_DOWNLOAD_OSM_CHANGES' in user and user['_DOWNLOAD_OSM_CHANGES']:
+                download(user)
+            if area['USERS'].index(user) < len(area['USERS']) - 1 and changed:
+                changedUser = True
+                time.sleep(10)
+        if users.index(area) < len(users) - 1 and changedUser:
+            time.sleep(10)
+    createExcelFile(outputFile = outputFile)
+
+if __name__ == "__main__":
+    ''' Set up arguments '''
+    parser = argparse.ArgumentParser(description="Create spreadsheet file with a variety of users")
+    parser.add_argument('-o', '--output', help="Location and name of the .ods file to create", default="Group.ods")
+    parser.add_argument('-u', '--users', help="A JSON formatted file with users and usernames. For an example, use --json_help", default="users")
+    parser.add_argument('--json_help', help="Print an example JSON file", action='store_true')
+    parser.add_argument('--cache_dir', help="The directory to cache the csv files", default="cache")
+    args = parser.parse_args()
+
+    if args.json_help:
+        print("""
+/* Variables starting with "_" are optional */
+{
+    "_LASTWEEK": false,
+    "_CHANGESETCOMMENTS": ["#Hashtag1", "#Hashtag2"],
+    "USERS": [
+	{
+            "USER": "OSM_USER_NAME",
+            "_NAME": "NAME_OF_USER",
+            "_TARGET_CHANGES": 1750,
+            "_WORKWEEK": 5,
+            "_DOWNLOAD_OSM_CHANGES": true
+        }
+    ]
+}
+        """)
+        exit(-2)
+    cacheDir = args.cache_dir
+    main(args.users, args.output)
