@@ -1,3 +1,4 @@
+#! /usr/bin/env python3
 from setuptools import setup
 
 setup(name='changesets2CSV',
@@ -8,8 +9,5 @@ setup(name='changesets2CSV',
       maintainer='Zack LaVergne',
       maintainer_email='zack@kaartgroup.com',
       license='MIT',
-      python_requires='>3.6.0',
-      scripts=['changesets2CSV/changesets2CSV'],
-      install_requires=[
-            'XlsxWriter==1.1.7'
-      ])
+      python_requires='>3',
+      scripts=['changesets2CSV/changesets2CSV'])
