@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-
 ''' changesets2CSV
 
 This tool will build out a CSV of changeset info queried based on the given parameters
@@ -13,10 +11,99 @@ Released under the MIT license: http://opensource.org/licenses/mit-license.php
 import xml.etree.ElementTree as ET
 import csv
 import argparse
-import urllib
+import urllib.parse, urllib.request
+from datetime import datetime, date, timedelta
+import os
+import sys
+import glob
+import re
+import time
+from xlsxwriter.workbook import Workbook
 
 
-def changesets2Csv(file_name, user=None, start_time=None, end_time=None, bbox=None):
+def valid_date(s):
+    try:
+        return datetime.strptime(s, "%Y-%m-%d")
+    except ValueError:
+        msg = "Not a valid date: '{0}'.".format(s)
+        raise argparse.ArgumentTypeError(msg)
+
+
+def create_specific(args):
+    out = os.path.join(args.output, args.user + '.csv')
+    changesets = get_changesets(args.user, args.start_time, args.end_time, args.bbox)
+    if len(changesets) < 1:
+        sys.exit(1)
+    changeset_csv(out, changesets)
+    if args.excel:
+        create_excel_file
+
+
+def create_summary(args):
+    changeset_total = 0
+    edit_total = 0
+    disc_total = 0
+    epc_total = 0  # edits per changeset
+    summary = []
+    with open(args.users, mode='r') as f:
+        users = csv.DictReader(f)
+        for user in users:
+            print("Processing changesets for {} ...".format(str(user['name'])), end='\r')
+            out_file = os.path.join(args.output, str(user['name']) + '.csv')
+            changesets = get_changesets(user['user_id'], args.start_time, args.end_time, args.bbox)
+
+            # no point in doing anything if there aren't any changesets
+            if len(changesets) < 1:
+                print("Warning: There were no changesets for {} within those parameters\n".format(str(user['name'])))
+                continue
+
+            counts = changeset_csv(out_file, changesets, name=str(user['name']), summary=True)
+            counts['Editor'] = str(user['name'])
+            summary.append(counts)
+            changeset_total += counts['Changesets']
+            edit_total += counts['Edits']
+            disc_total += counts['Discussions']
+            time.sleep(10)
+            print("Processing changesets for {} ... Done\n".format(str(user['name'])))
+
+    try:
+        epc_total = round((edit_total / changeset_total), 2)
+        summary.append({
+            'Editor': 'TOTAL',
+            'Changesets': changeset_total,
+            'Edits': edit_total,
+            'Discussions': disc_total,
+            'Edits/Changeset': epc_total
+        })
+        summary_csv(args, os.path.join(args.output, "summary.csv"), summary)
+    except ZeroDivisionError:
+            print("Warning: There were no changesets within those parameters")
+
+
+def summary_csv(args, output_file, summary):
+    with open(output_file, 'w') as f:
+        fieldnames = ['Editor', 'Changesets', 'Edits', 'Discussions', 'Edits/Changeset']
+        csv_writer = csv.DictWriter(f, fieldnames=fieldnames)
+        csv_writer.writeheader()
+
+        csv_writer.writerows(summary)
+
+    if args.excel:
+        create_excel_file(args, os.path.dirname(os.path.realpath(output_file)))
+
+
+def create_weekly(args):
+    today = date.today()
+    weekday = today.weekday()
+    start_delta = timedelta(days=weekday, weeks=1)
+    start = today - start_delta
+    end = start + timedelta(days=5)
+    args.start_time = str(start)
+    args.end_time = str(end)
+    create_summary(args)
+
+
+def get_changesets(user=None, start_time=None, end_time=None, bbox=None):
     query_params = {}
     if user:
         if user.isdigit():
@@ -31,9 +118,10 @@ def changesets2Csv(file_name, user=None, start_time=None, end_time=None, bbox=No
         query_params['bbox'] = ','.join(bbox)
 
     changesets = []
+
     try:
-        api_url = "https://api.openstreetmap.org/api/0.6/changesets?" + urllib.urlencode(query_params)
-        result = urllib.urlopen(api_url).read()
+        api_url = "https://api.openstreetmap.org/api/0.6/changesets?" + urllib.parse.urlencode(query_params)
+        result = urllib.request.urlopen(api_url).read()
         root = ET.fromstring(result)
         sets = root.findall('changeset')
         changesets.extend(sets)
@@ -42,8 +130,8 @@ def changesets2Csv(file_name, user=None, start_time=None, end_time=None, bbox=No
             new_end = sets[-1].get('closed_at').split("T")[0]
             start_time = "1970-01-01" if not start_time else start_time
             query_params['time'] = ','.join([start_time, new_end])
-            api_url = "https://api.openstreetmap.org/api/0.6/changesets?" + urllib.urlencode(query_params)
-            result = urllib.urlopen(api_url).read()
+            api_url = "https://api.openstreetmap.org/api/0.6/changesets?" + urllib.parse.urlencode(query_params)
+            result = urllib.request.urlopen(api_url).read()
             root = ET.fromstring(result)
             sets = root.findall('changeset')
             changesets.extend(sets)
@@ -51,45 +139,147 @@ def changesets2Csv(file_name, user=None, start_time=None, end_time=None, bbox=No
     except Exception as e:
         print("Error with calling the API: " + str(e))
 
-    with open(file_name, 'w') as f:
-        fieldnames = ['ID', 'Comment', 'Open', 'User', 'Created at', 'Closed at', 'Changes', 'Discussions', 'URL']
-        csv_writer = csv.DictWriter(f, fieldnames=fieldnames)
-        url = "https://www.openstreetmap.org/changeset/{}"
+    return changesets
 
-        csv_writer.writeheader()
-        for item in changesets:
-            changeset = {'ID': item.get('id'),
-                         'Comment': '',
-                         'Open': item.get('open'),
-                         'User': item.get('user'),
-                         'Created at': item.get('created_at'),
-                         'Closed at': item.get('closed_at'),
-                         'Changes': item.get('changes_count'),
-                         'Discussions': item.get('comments_count'),
-                         'URL': url.format(item.get('id'))}
 
-            for child in item:
-                if child.get('k') == 'comment':
-                    changeset['Comment'] = child.get('v').encode('utf-8')
+def changeset_csv(output_file, changesets, name=None, summary=False):
+    try:
+        with open(output_file, 'w') as f:
+            fieldnames = ['Username', 'ID', 'Comment', 'Open', 'Created at', 'Closed at', 'Changes', 'Discussions', 'URL']
+            csv_writer = csv.DictWriter(f, fieldnames=fieldnames)
+            url = "https://www.openstreetmap.org/changeset/{}"
 
-            csv_writer.writerow(changeset)
+            csv_writer.writeheader()
+
+            # Initialize counters for summary
+            changeset_count = 0
+            edit_count = 0
+            discussion_count = 0
+            for item in changesets:
+                changeset = {'Username': item.get('user'),
+                             'ID': item.get('id'),
+                             'Comment': '',
+                             'Open': item.get('open'),
+                             'Created at': item.get('created_at'),
+                             'Closed at': item.get('closed_at'),
+                             'Changes': item.get('changes_count'),
+                             'Discussions': item.get('comments_count'),
+                             'URL': url.format(item.get('id'))}
+
+                for child in item:
+                    if child.get('k') == 'comment':
+                        changeset['Comment'] = child.get('v').encode('utf-8')
+
+                changeset_count += 1
+                edit_count += int(item.get('changes_count'))
+                discussion_count += int(item.get('comments_count'))
+
+                csv_writer.writerow(changeset)
+
+    except Exception as e:
+        print("Error creating csv {}".format(e))
+        raise
+
+    if summary:
+        return {'Changesets': changeset_count,
+                'Edits': edit_count,
+                'Discussions': discussion_count,
+                'Edits/Changeset': round((edit_count/changeset_count), 2)}
 
     return True
 
 
-if __name__ == "__main__":
+def get_args():
+    parser = argparse.ArgumentParser(usage='''changesets2CSV [-h] [-b min_lon min_lat max_lon max_lat] [-v] <command>
+    ''', description="Commands for creating changeset CSV's")
+    parser.add_argument('--bbox', nargs=4,
+                        help="The bbox to query changesets. Values separated by spaces.",
+                        metavar=('min_lon', 'min_lat', 'max_lon', 'max_lat'))
+    # parser.add_argument('-v', '--verbose', action='store_true') #nothing to verbose yet
+    parser.add_argument('-o', '--output', help="Location to create .csv files (default is current location)", default=os.getcwd())
+    parser.add_argument('-x', '--excel', help="Create a .xls file.", action='store_true')
+    parser.set_defaults(which='main')
+    subparsers = parser.add_subparsers(title='commands')
 
-    ''' Set up arguments '''
-    parser = argparse.ArgumentParser(description="Create CSV file of changeset info given query parameters.")
-    parser.add_argument('output', help="Location and name of the .csv file to create ")
-    parser.add_argument('-u', '--user', help="The OSM username or user id to use for the query (either username or user id, NOT both).")
-    parser.add_argument('-s', '--start_time', help="The start time of the window to query (YYYY-MM-DD).")
-    parser.add_argument('-e', '--end_time', help="The end time of the window to query (YYYY-MM-DD).")
-    parser.add_argument('-b', '--bbox', nargs=4, help="The bbox to query changesets. Values separated by spaces (min_lon min_lat max_lon max_lat).")
+    specific = subparsers.add_parser("specific", help='Specific query', description="Run query with specific parameters and create one output file.")
+    specific.add_argument('-u', '--user', help="The OSM username or user id to use for the query (either username or user id, NOT both).")
+    specific.add_argument('-s', '--start_time', nargs=1, type=valid_date, help="The start time of the window to query (YYYY-MM-DD).")
+    specific.add_argument('-e', '--end_time', nargs=1, type=valid_date, help="The end time of the window to query (YYYY-MM-DD).")
+    specific.set_defaults(func=create_specific, which="specific")
+
+    summary = subparsers.add_parser("summary", help="Create a summary of changesets", description="Create a summary for a specified time range.")
+    summary.add_argument('users', help="Path of the .config file of users.")
+    summary.add_argument('-s', '--start_time', nargs=1, type=valid_date, help="The start time of the window to query (YYYY-MM-DD).")
+    summary.add_argument('-e', '--end_time', nargs=1, type=valid_date, help="The end time of the window to query (YYYY-MM-DD).")
+    summary.set_defaults(func=create_summary, which="summary")
+
+    weekly = subparsers.add_parser("weekly", help="Create a weekly summary of changesets")
+    weekly.add_argument('users', help="Path of the .config file of users.")
+    weekly.set_defaults(func=create_weekly, which="weekly")
+
     args = parser.parse_args()
 
-    if not ((args.user or args.bbox) or (args.start_time and args.end_time)):
-        parser.error('No query parameters supplied: add --user, --bbox, or --start_time and --end_time.')
+    try:
+        if args.which == 'specific':
+            if not ((args.user or args.bbox) or (args.start_time and args.end_time)):
+                parser.error('No query parameters supplied: add --user or --bbox, or --start_time and --end_time.')
 
-    if not changesets2Csv(args.output, args.user, args.start_time, args.end_time, args.bbox):
-        print("There was an error creating the csv. Please contact the developer for assistance (zack@kaartgroup.com).")
+        args.func(args)
+
+    except AttributeError:
+        parser.print_help(sys.stderr)
+
+
+def create_excel_file(args, output_dir):
+    files = sorted(glob.glob(output_dir + os.sep + '*' + '.csv'))
+    if args.start_time and args.end_time:
+        name = "_".join([str(args.start_time), str(args.end_time)]) + '.xlsx'
+    else:
+        name = 'Kaart_activity.xlsx'
+    workbook = Workbook(os.path.join(output_dir, name), {'strings_to_numbers': True, 'constant_memory': True})
+    for csvFile in files:
+        name = csvFile.replace('.csv', '').replace(output_dir + os.sep, '')
+        worksheet = workbook.add_worksheet(name)
+        with open(csvFile, 'r') as csvfile:
+            csvreader = csv.reader(csvfile, delimiter=',')
+            for row_index, row in enumerate(csvreader):
+                for col_index, data in enumerate(row):
+                    worksheet.write(row_index, col_index, data)
+        # TODO: add chart
+        # if name == 'summary':
+        #     chart = workbook.add_chart({'type': 'column'})
+        # chart.add_series({
+        #     'name': 
+        # })
+    workbook.close()
+
+
+def parse(item):
+    try:
+        newItem = float(item)
+        return newItem
+    except ValueError:
+        pass
+    try:
+        booleans = ["true", "false"]
+        if item.lower() in booleans:
+            newItem = bool(item)
+            return newItem
+    except ValueError:
+        pass
+    try:
+        if item.startswith("b'"):
+            newItem = item.replace("b'", '', 1)
+            newItem = re.sub(r"(.*)'", r'\1', newItem)
+            newItem = bytes(newItem, "ascii").decode("utf-8")
+            # Not perfected yet
+            # return newItem
+    except (ValueError, TypeError):
+        pass
+    return item
+
+
+if __name__ == "__main__":
+
+    ''' Vamanos '''
+    get_args()
