@@ -34,4 +34,4 @@ commands:
     weekly              Create a weekly summary of changesets
 ```
 ### Example
-changesets2CSV -x weekly ../example.config
+`changesets2CSV -x weekly ../example.config`
