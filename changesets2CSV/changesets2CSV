@@ -48,7 +48,7 @@ def create_summary(args):
     with open(args.users, mode='r') as f:
         users = csv.DictReader(f)
         for user in users:
-            print("Processing changesets for {} ...".format(str(user['name'])), end='\r')
+            print("Processing changesets for {} ...".format(str(user['name'])), end="\r")
             out_file = os.path.join(args.output, str(user['name']) + '.csv')
             changesets = get_changesets(user['user_id'], args.start_time, args.end_time, args.bbox)
 
