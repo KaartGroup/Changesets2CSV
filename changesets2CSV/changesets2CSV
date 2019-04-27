@@ -197,7 +197,7 @@ def get_args():
                         metavar=('min_lon', 'min_lat', 'max_lon', 'max_lat'))
     # parser.add_argument('-v', '--verbose', action='store_true') #nothing to verbose yet
     parser.add_argument('-o', '--output', help="Location to create .csv files (default is current location)", default=os.getcwd())
-    parser.add_argument('-x', '--excel', help="Create a .xls file.", action='store_true')
+    parser.add_argument('-x', '--excel', help="Create a .xlsx file.", action='store_true')
     parser.set_defaults(which='main')
     subparsers = parser.add_subparsers(title='commands')
 
