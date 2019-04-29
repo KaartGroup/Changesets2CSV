@@ -34,5 +34,13 @@ commands:
     summary             Create a summary of changesets
     weekly              Create a weekly summary of changesets
 ```
+
+#### User Config File Example
+```
+name,user_id
+Zack,5423893
+Zack_Import,8884770
+```
+
 ### Example
 `changesets2CSV -x weekly ../example.config`
