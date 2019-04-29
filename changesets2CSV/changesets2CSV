@@ -20,6 +20,7 @@ import sys
 import glob
 import re
 import time
+import ssl
 from xlsxwriter.workbook import Workbook
 
 
@@ -123,7 +124,8 @@ def get_changesets(user=None, start_time=None, end_time=None, bbox=None):
 
     try:
         api_url = "https://api.openstreetmap.org/api/0.6/changesets?" + urllib.parse.urlencode(query_params)
-        result = urllib.request.urlopen(api_url).read()
+        context = ssl._create_unverified_context()
+        result = urllib.request.urlopen(api_url, context=context).read()
         root = ET.fromstring(result)
         sets = root.findall('changeset')
         changesets.extend(sets)
@@ -133,7 +135,8 @@ def get_changesets(user=None, start_time=None, end_time=None, bbox=None):
             start_time = "1970-01-01" if not start_time else start_time
             query_params['time'] = ','.join([start_time, new_end])
             api_url = "https://api.openstreetmap.org/api/0.6/changesets?" + urllib.parse.urlencode(query_params)
-            result = urllib.request.urlopen(api_url).read()
+            context = ssl._create_unverified_context()
+            result = urllib.request.urlopen(api_url, context=context).read()
             root = ET.fromstring(result)
             sets = root.findall('changeset')
             changesets.extend(sets)
