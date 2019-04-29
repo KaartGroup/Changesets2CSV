@@ -11,4 +11,7 @@ setup(name='changesets2CSV',
       maintainer_email='zack@kaartgroup.com',
       license='MIT',
       python_requires='>3.6.0',
-      scripts=['changesets2CSV/changesets2CSV'])
+      scripts=['changesets2CSV/changesets2CSV'],
+      install_requires=[
+            'XlsxWriter==1.1.7'
+      ])
