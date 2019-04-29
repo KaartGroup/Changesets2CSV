@@ -7,8 +7,9 @@ This tool requires [`Python 3.6+`](https://www.python.org/downloads/)
 ## Installation
 To install `changesets2CSV` on MacOS, Ubuntu, or Windows run:
 ```
-pip install git+https://github.com/KaartGroup/Changesets2CSV
+pip3 install git+https://github.com/KaartGroup/Changesets2CSV
 ```
+Note: You may have to run the above in a `virtualenv` or as `sudo`
 
 ## Usage
 ```
