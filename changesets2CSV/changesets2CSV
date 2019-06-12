@@ -130,8 +130,10 @@ def get_changesets(user=None, start_time=None, end_time=None, bbox=None):
         sets = root.findall('changeset')
         changesets.extend(sets)
 
+        dateFormat = '%Y-%m-%dT%H:%M:%SZ'
         while len(sets) >= 100:
-            new_end = sets[-1].get('closed_at')
+            new_end = datetime.strptime(sets[-1].get('closed_at'), dateFormat) - timedelta(0,5)
+            new_end = new_end.strftime(dateFormat)
             start_time = "1970-01-01" if not start_time else start_time
             query_params['time'] = ','.join([start_time, new_end])
             api_url = "https://api.openstreetmap.org/api/0.6/changesets?" + urllib.parse.urlencode(query_params)
@@ -254,7 +256,7 @@ def create_excel_file(args, output_dir):
         # if name == 'summary':
         #     chart = workbook.add_chart({'type': 'column'})
         # chart.add_series({
-        #     'name': 
+        #     'name':
         # })
     workbook.close()
 
