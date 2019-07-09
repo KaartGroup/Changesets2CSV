@@ -105,6 +105,17 @@ def create_weekly(args):
     args.end_time = str(end)
     create_summary(args)
 
+def count_new_modified_deleted(url):
+    api_url = "https://www.openstreetmap.org/api/0.6/changeset/{changeset}/download"
+    changeset = url.rpartition('/')[2]
+    context = ssl._create_unverified_context()
+    result = urllib.request.urlopen(api_url.format(changeset=changeset), context=context).read()
+    root = ET.fromstring(result)
+    newModifiedDeleted = {}
+    newModifiedDeleted['Added'] = len(root.findall('create'))
+    newModifiedDeleted['Modified'] = len(root.findall('modify'))
+    newModifiedDeleted['Deleted'] = len(root.findall('deleted'))
+    return newModifiedDeleted
 
 def get_changesets(user=None, start_time=None, end_time=None, bbox=None):
     query_params = {}
@@ -152,7 +163,7 @@ def get_changesets(user=None, start_time=None, end_time=None, bbox=None):
 def changeset_csv(output_file, changesets, name=None, summary=False):
     try:
         with open(output_file, 'w') as f:
-            fieldnames = ['Username', 'ID', 'Comment', 'Open', 'Created at', 'Closed at', 'Changes', 'Discussions', 'URL']
+            fieldnames = ['Username', 'ID', 'Comment', 'Open', 'Created at', 'Closed at', 'Changes', 'Added', 'Modified', 'Deleted', 'Discussions', 'URL']
             csv_writer = csv.DictWriter(f, fieldnames=fieldnames)
             url = "https://www.openstreetmap.org/changeset/{}"
 
@@ -176,6 +187,10 @@ def changeset_csv(output_file, changesets, name=None, summary=False):
                 for child in item:
                     if child.get('k') == 'comment':
                         changeset['Comment'] = child.get('v').encode('utf-8')
+
+                changesetInformation = count_new_modified_deleted(changeset['URL'])
+                for key in changesetInformation:
+                    changeset[key] = changesetInformation[key]
 
                 changeset_count += 1
                 edit_count += int(item.get('changes_count'))
