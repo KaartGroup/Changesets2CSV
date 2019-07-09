@@ -171,6 +171,9 @@ def changeset_csv(output_file, changesets, name=None, summary=False):
             # Initialize counters for summary
             changeset_count = 0
             edit_count = 0
+            add_count = 0
+            modify_count = 0
+            delete_count = 0
             discussion_count = 0
             for item in changesets:
                 changeset = {'Username': item.get('user'),
@@ -192,6 +195,9 @@ def changeset_csv(output_file, changesets, name=None, summary=False):
                     changeset[key] = changesetInformation[key]
 
                 changeset_count += 1
+                add_count += changeset['Added']
+                modify_count += changeset['Modified']
+                delete_count += changeset['Deleted']
                 edit_count += int(item.get('changes_count'))
                 discussion_count += int(item.get('comments_count'))
 
@@ -204,6 +210,9 @@ def changeset_csv(output_file, changesets, name=None, summary=False):
     if summary:
         return {'Changesets': changeset_count,
                 'Edits': edit_count,
+                'Additions': add_count,
+                'Modifications': modify_count,
+                'Deletions': delete_count,
                 'Discussions': discussion_count,
                 'Edits/Changeset': round((edit_count/changeset_count), 2)}
 
