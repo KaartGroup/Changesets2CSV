@@ -105,11 +105,10 @@ def create_weekly(args):
     args.end_time = str(end)
     create_summary(args)
 
-def count_new_modified_deleted(url):
-    api_url = "https://www.openstreetmap.org/api/0.6/changeset/{changeset}/download"
-    changeset = url.rpartition('/')[2]
+def count_new_modified_deleted(changeset):
+    api_url = "https://www.openstreetmap.org/api/0.6/changeset/{changeset}/download".format(changeset=changeset)
     context = ssl._create_unverified_context()
-    result = urllib.request.urlopen(api_url.format(changeset=changeset), context=context).read()
+    result = urllib.request.urlopen(api_url, context=context).read()
     root = ET.fromstring(result)
     newModifiedDeleted = {}
     newModifiedDeleted['Added'] = len(root.findall('create'))
@@ -188,7 +187,7 @@ def changeset_csv(output_file, changesets, name=None, summary=False):
                     if child.get('k') == 'comment':
                         changeset['Comment'] = child.get('v').encode('utf-8')
 
-                changesetInformation = count_new_modified_deleted(changeset['URL'])
+                changesetInformation = count_new_modified_deleted(changeset['ID'])
                 for key in changesetInformation:
                     changeset[key] = changesetInformation[key]
 
