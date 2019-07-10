@@ -105,6 +105,16 @@ def create_weekly(args):
     args.end_time = str(end)
     create_summary(args)
 
+def count_new_modified_deleted(changeset):
+    api_url = "https://www.openstreetmap.org/api/0.6/changeset/{changeset}/download".format(changeset=changeset)
+    context = ssl._create_unverified_context()
+    result = urllib.request.urlopen(api_url, context=context).read()
+    root = ET.fromstring(result)
+    newModifiedDeleted = {}
+    newModifiedDeleted['Added'] = len(root.findall('create'))
+    newModifiedDeleted['Modified'] = len(root.findall('modify'))
+    newModifiedDeleted['Deleted'] = len(root.findall('deleted'))
+    return newModifiedDeleted
 
 def get_changesets(user=None, start_time=None, end_time=None, bbox=None):
     query_params = {}
@@ -130,8 +140,10 @@ def get_changesets(user=None, start_time=None, end_time=None, bbox=None):
         sets = root.findall('changeset')
         changesets.extend(sets)
 
+        dateFormat = '%Y-%m-%dT%H:%M:%SZ'
         while len(sets) >= 100:
-            new_end = sets[-1].get('closed_at').split("T")[0]
+            new_end = datetime.strptime(sets[-1].get('closed_at'), dateFormat) - timedelta(0,5)
+            new_end = new_end.strftime(dateFormat)
             start_time = "1970-01-01" if not start_time else start_time
             query_params['time'] = ','.join([start_time, new_end])
             api_url = "https://api.openstreetmap.org/api/0.6/changesets?" + urllib.parse.urlencode(query_params)
@@ -150,7 +162,7 @@ def get_changesets(user=None, start_time=None, end_time=None, bbox=None):
 def changeset_csv(output_file, changesets, name=None, summary=False):
     try:
         with open(output_file, 'w') as f:
-            fieldnames = ['Username', 'ID', 'Comment', 'Open', 'Created at', 'Closed at', 'Changes', 'Discussions', 'URL']
+            fieldnames = ['Username', 'ID', 'Comment', 'Open', 'Created at', 'Closed at', 'Changes', 'Added', 'Modified', 'Deleted', 'Discussions', 'URL']
             csv_writer = csv.DictWriter(f, fieldnames=fieldnames)
             url = "https://www.openstreetmap.org/changeset/{}"
 
@@ -159,6 +171,9 @@ def changeset_csv(output_file, changesets, name=None, summary=False):
             # Initialize counters for summary
             changeset_count = 0
             edit_count = 0
+            add_count = 0
+            modify_count = 0
+            delete_count = 0
             discussion_count = 0
             for item in changesets:
                 changeset = {'Username': item.get('user'),
@@ -175,7 +190,14 @@ def changeset_csv(output_file, changesets, name=None, summary=False):
                     if child.get('k') == 'comment':
                         changeset['Comment'] = child.get('v').encode('utf-8')
 
+                changesetInformation = count_new_modified_deleted(changeset['ID'])
+                for key in changesetInformation:
+                    changeset[key] = changesetInformation[key]
+
                 changeset_count += 1
+                add_count += changeset['Added']
+                modify_count += changeset['Modified']
+                delete_count += changeset['Deleted']
                 edit_count += int(item.get('changes_count'))
                 discussion_count += int(item.get('comments_count'))
 
@@ -188,6 +210,9 @@ def changeset_csv(output_file, changesets, name=None, summary=False):
     if summary:
         return {'Changesets': changeset_count,
                 'Edits': edit_count,
+                'Additions': add_count,
+                'Modifications': modify_count,
+                'Deletions': delete_count,
                 'Discussions': discussion_count,
                 'Edits/Changeset': round((edit_count/changeset_count), 2)}
 
@@ -254,7 +279,7 @@ def create_excel_file(args, output_dir):
         # if name == 'summary':
         #     chart = workbook.add_chart({'type': 'column'})
         # chart.add_series({
-        #     'name': 
+        #     'name':
         # })
     workbook.close()
 
