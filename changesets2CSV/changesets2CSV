@@ -13,7 +13,8 @@ Released under the MIT license: http://opensource.org/licenses/mit-license.php
 import xml.etree.ElementTree as ET
 import csv
 import argparse
-import urllib.parse, urllib.request
+import requests
+from cachecontrol import CacheControl
 from datetime import datetime, date, timedelta
 import os
 import sys
@@ -107,8 +108,8 @@ def create_weekly(args):
 
 def count_new_modified_deleted(changeset):
     api_url = "https://www.openstreetmap.org/api/0.6/changeset/{changeset}/download".format(changeset=changeset)
-    context = ssl._create_unverified_context()
-    result = urllib.request.urlopen(api_url, context=context).read()
+    session = CacheControl(requests.session())
+    result = session.get(api_url).text
     root = ET.fromstring(result)
     newModifiedDeleted = {}
     newModifiedDeleted['Added'] = len(root.findall('create'))
@@ -133,9 +134,9 @@ def get_changesets(user=None, start_time=None, end_time=None, bbox=None):
     changesets = []
 
     try:
-        api_url = "https://api.openstreetmap.org/api/0.6/changesets?" + urllib.parse.urlencode(query_params)
-        context = ssl._create_unverified_context()
-        result = urllib.request.urlopen(api_url, context=context).read()
+        api_url = "https://api.openstreetmap.org/api/0.6/changesets"
+        session = CacheControl(requests.session())
+        result = session.get(api_url, params=query_params).text
         root = ET.fromstring(result)
         sets = root.findall('changeset')
         changesets.extend(sets)
@@ -146,9 +147,7 @@ def get_changesets(user=None, start_time=None, end_time=None, bbox=None):
             new_end = new_end.strftime(dateFormat)
             start_time = "1970-01-01" if not start_time else start_time
             query_params['time'] = ','.join([start_time, new_end])
-            api_url = "https://api.openstreetmap.org/api/0.6/changesets?" + urllib.parse.urlencode(query_params)
-            context = ssl._create_unverified_context()
-            result = urllib.request.urlopen(api_url, context=context).read()
+            result = session.get(api_url, params=query_params).text
             root = ET.fromstring(result)
             sets = root.findall('changeset')
             changesets.extend(sets)
