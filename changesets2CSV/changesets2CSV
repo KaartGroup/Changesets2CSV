@@ -86,7 +86,7 @@ def create_summary(args):
 
 def summary_csv(args, output_file, summary):
     with open(output_file, 'w') as f:
-        fieldnames = ['Editor', 'Changesets', 'Edits', 'Discussions', 'Edits/Changeset']
+        fieldnames = ['Editor', 'Changesets', 'Edits', 'Discussions', 'Edits/Changeset', 'Additions', 'Modifications', 'Deletions']
         csv_writer = csv.DictWriter(f, fieldnames=fieldnames)
         csv_writer.writeheader()
 
@@ -126,6 +126,10 @@ def get_changesets(user=None, start_time=None, end_time=None, bbox=None):
             query_params['display_name'] = user
 
     if start_time and end_time:
+        if type(start_time) is list and len(start_time) == 1:
+            start_time = start_time[0].strftime("%Y-%m-%d")
+        if type(end_time) is list and len(end_time) == 1:
+            end_time = end_time[0].strftime("%Y-%m-%d")
         query_params['time'] = ','.join([start_time, end_time])
 
     if bbox:
