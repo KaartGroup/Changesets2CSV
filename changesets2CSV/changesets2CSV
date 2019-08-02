@@ -13,7 +13,8 @@ Released under the MIT license: http://opensource.org/licenses/mit-license.php
 import xml.etree.ElementTree as ET
 import csv
 import argparse
-import urllib.parse, urllib.request
+import requests
+from cachecontrol import CacheControl
 from datetime import datetime, date, timedelta
 import os
 import sys
@@ -80,12 +81,12 @@ def create_summary(args):
         })
         summary_csv(args, os.path.join(args.output, "summary.csv"), summary)
     except ZeroDivisionError:
-            print("Warning: There were no changesets within those parameters")
+       print("Warning: There were no changesets within those parameters")
 
 
 def summary_csv(args, output_file, summary):
     with open(output_file, 'w') as f:
-        fieldnames = ['Editor', 'Changesets', 'Edits', 'Discussions', 'Edits/Changeset']
+        fieldnames = ['Editor', 'Changesets', 'Edits', 'Discussions', 'Edits/Changeset', 'Additions', 'Modifications', 'Deletions']
         csv_writer = csv.DictWriter(f, fieldnames=fieldnames)
         csv_writer.writeheader()
 
@@ -106,9 +107,13 @@ def create_weekly(args):
     create_summary(args)
 
 def count_new_modified_deleted(changeset):
+    """Get the new, modified, or deleted objects in a changeset
+    >>> count_new_modified_deleted(get_changesets(user="vorpalblade", start_time="2019-07-07", end_time="2019-07-08")[0].get('id'))
+    {'Added': 129, 'Modified': 5, 'Deleted': 8}
+    """
     api_url = "https://www.openstreetmap.org/api/0.6/changeset/{changeset}/download".format(changeset=changeset)
-    context = ssl._create_unverified_context()
-    result = urllib.request.urlopen(api_url, context=context).read()
+    session = CacheControl(requests.session())
+    result = session.get(api_url).text
     root = ET.fromstring(result)
     newModifiedDeleted = {}
     newModifiedDeleted['Added'] = len(root.findall('create'))
@@ -117,6 +122,18 @@ def count_new_modified_deleted(changeset):
     return newModifiedDeleted
 
 def get_changesets(user=None, start_time=None, end_time=None, bbox=None):
+    """Get the changesets for a user between start_time and end_time with no bbox
+    >>> len(get_changesets(user="vorpalblade", start_time="2019-07-07", end_time="2019-07-08"))
+    1
+    >>> len(get_changesets(user="9019988", start_time="2018-11-05", end_time="2018-11-06"))
+    149
+    >>> len(get_changesets(user="vorpalblade", start_time=[datetime(2019, 7, 7)], end_time="2019-07-08"))
+    1
+    >>> len(get_changesets(user="9019988", start_time="2018-11-05", end_time=[datetime(2018, 11, 6)]))
+    149
+    >>> len(get_changesets(user="9019988", start_time=[datetime(2018, 11, 5)], end_time=[datetime(2018, 11, 6)]))
+    149
+    """
     query_params = {}
     if user:
         if user.isdigit():
@@ -125,6 +142,10 @@ def get_changesets(user=None, start_time=None, end_time=None, bbox=None):
             query_params['display_name'] = user
 
     if start_time and end_time:
+        if type(start_time) is list and len(start_time) == 1:
+            start_time = start_time[0].strftime("%Y-%m-%d")
+        if type(end_time) is list and len(end_time) == 1:
+            end_time = end_time[0].strftime("%Y-%m-%d")
         query_params['time'] = ','.join([start_time, end_time])
 
     if bbox:
@@ -133,10 +154,10 @@ def get_changesets(user=None, start_time=None, end_time=None, bbox=None):
     changesets = []
 
     try:
-        api_url = "https://api.openstreetmap.org/api/0.6/changesets?" + urllib.parse.urlencode(query_params)
-        context = ssl._create_unverified_context()
-        result = urllib.request.urlopen(api_url, context=context).read()
-        root = ET.fromstring(result)
+        api_url = "https://api.openstreetmap.org/api/0.6/changesets"
+        session = CacheControl(requests.session())
+        result = session.get(api_url, params=query_params)
+        root = ET.fromstring(result.text)
         sets = root.findall('changeset')
         changesets.extend(sets)
 
@@ -146,9 +167,7 @@ def get_changesets(user=None, start_time=None, end_time=None, bbox=None):
             new_end = new_end.strftime(dateFormat)
             start_time = "1970-01-01" if not start_time else start_time
             query_params['time'] = ','.join([start_time, new_end])
-            api_url = "https://api.openstreetmap.org/api/0.6/changesets?" + urllib.parse.urlencode(query_params)
-            context = ssl._create_unverified_context()
-            result = urllib.request.urlopen(api_url, context=context).read()
+            result = session.get(api_url, params=query_params).text
             root = ET.fromstring(result)
             sets = root.findall('changeset')
             changesets.extend(sets)
@@ -222,6 +241,7 @@ def changeset_csv(output_file, changesets, name=None, summary=False):
 def get_args():
     parser = argparse.ArgumentParser(usage='''changesets2CSV [-h] [-b min_lon min_lat max_lon max_lat] [-v] <command>
     ''', description="Commands for creating changeset CSV's")
+    parser.add_argument('-t', '--test', help="Run tests to make certain that everything works", action='store_true')
     parser.add_argument('--bbox', nargs=4,
                         help="The bbox to query changesets. Values separated by spaces.",
                         metavar=('min_lon', 'min_lat', 'max_lon', 'max_lat'))
@@ -250,6 +270,10 @@ def get_args():
     args = parser.parse_args()
 
     try:
+        if args.test:
+            import doctest
+            doctest.testmod()
+            return
         if args.which == 'specific':
             if not ((args.user or args.bbox) or (args.start_time and args.end_time)):
                 parser.error('No query parameters supplied: add --user or --bbox, or --start_time and --end_time.')
