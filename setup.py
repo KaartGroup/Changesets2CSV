@@ -13,7 +13,7 @@ setup(name='changesets2CSV',
       python_requires='>3.6.0',
       scripts=['changesets2CSV/changesets2CSV'],
       install_requires=[
-            'XlsxWriter==1.1.7',
+            'XlsxWriter>=1.1.7',
             'CacheControl>=0.12.0',
             'requests>=2.21.0'
       ])
