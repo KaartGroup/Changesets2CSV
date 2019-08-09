@@ -141,7 +141,7 @@ def count_tag_change(changesets,tag, osm_obj_type="*",const_tag="none"):
 
       return changes
   else:
-      return 0
+      return {"testing"}
 
 
 
@@ -206,4 +206,4 @@ def overpass_query(query):
     else:
         raise ValueError("Unexpected content type ({}) from the query: {}".format(content_type, query))
 
-print(count_tag_change([73119881],"name","way","highway"))
+print(count_tag_change([72917146,72916726,72916312,72915002,72913700,72912034,72911454,72909249,72908229,72905720],"name","way","highway"))
