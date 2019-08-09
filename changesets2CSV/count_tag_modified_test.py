@@ -20,57 +20,56 @@ import doctest
 
 USER_AGENT = "trackDownload/0.1 (lucas.bingham@kaartgroup.com)"
 
-print_version_lists = False
-print_query = False
-print_query_response = False
-object_limit_for_query=0
-dont_run_query = False
-dont_process_query = False
 
-def count_tag_change(changeset,tag, osm_obj_type="*",const_tag="none"):
-  api_url = "https://www.openstreetmap.org/api/0.6/changeset/{changeset}/download".format(changeset=changeset)
-  dev_api_url = "https://master.apis.dev.openstreetmap.org/api/0.6/changeset/{changeset}/download".format(changeset=changeset)
-  api_way_url = "https://www.openstreetmap.org/api/0.6/way/"
-  api_url = api_url
-  session = CacheControl(requests.session())
-  result = session.get(api_url).text
-  root = ET.fromstring(result)
-
+def count_tag_change(changesets,tag, osm_obj_type="*",const_tag="none"):
+  #Testing variables
+  print_version_lists = True
+  print_query = False
+  print_query_response = False
+  object_limit_for_query=0
+  dont_run_query = False
+  dont_process_query = False
   #Dictionaries of id, value, version
   new_ver_objects = []
-  if const_tag != "none":
-      objs_modified = root.findall("./modify/{osm_obj_type}/tag[@k='{const_tag}']..".format(const_tag=const_tag,osm_obj_type=osm_obj_type))
-      objs_created = root.findall("./create/{osm_obj_type}/tag[@k='{const_tag}']..".format(const_tag=const_tag,osm_obj_type=osm_obj_type))
-      objs_deleted = root.findall("./delete/{osm_obj_type}/tag[@k='{const_tag}']..".format(const_tag=const_tag,osm_obj_type=osm_obj_type))
 
-      print(len(objs_created)," created. ",len(objs_deleted)," deleted.",len(objs_modified)," modified.")
+  for changeset in changesets:
+      api_url = "https://www.openstreetmap.org/api/0.6/changeset/{changeset}/download".format(changeset=changeset)
+      dev_api_url = "https://master.apis.dev.openstreetmap.org/api/0.6/changeset/{changeset}/download".format(changeset=changeset)
+      api_way_url = "https://www.openstreetmap.org/api/0.6/way/"
+      api_url = api_url
+      session = CacheControl(requests.session())
+      result = session.get(api_url).text
+      root = ET.fromstring(result)
 
-      for obj in objs_modified:
-          #print("way ",obj.attrib["id"])
-          this_obj = {"id":obj.attrib['id'],"version":int(obj.attrib['version'])}
-          tags = obj.findall("tag")
-          for thisTag in tags:
-              this_obj[thisTag.attrib['k']] = thisTag.attrib['v']
-              #print(tag.attrib["k"],": ",tag.attrib["v"])
 
-          new_ver_objects.append(this_obj)
+      if const_tag != "none":
+          objs_modified = root.findall("./modify/{osm_obj_type}/tag[@k='{const_tag}']..".format(const_tag=const_tag,osm_obj_type=osm_obj_type))
+          objs_created = root.findall("./create/{osm_obj_type}/tag[@k='{const_tag}']..".format(const_tag=const_tag,osm_obj_type=osm_obj_type))
+          objs_deleted = root.findall("./delete/{osm_obj_type}/tag[@k='{const_tag}']..".format(const_tag=const_tag,osm_obj_type=osm_obj_type))
 
-  else:
-      objs_modified = root.findall("./modify/{osm_obj_type}".format(const_tag=const_tag,osm_obj_type=osm_obj_type))
-      objs_created = root.findall("./create/{osm_obj_type}".format(const_tag=const_tag,osm_obj_type=osm_obj_type))
-      objs_deleted = root.findall("./delete/{osm_obj_type}".format(const_tag=const_tag,osm_obj_type=osm_obj_type))
-      for obj in objs_modified:
-          #print("way ",obj.attrib["id"])
-          this_obj = {"id":obj.attrib['id'],"version":int(obj.attrib['version'])}
-          tags = obj.findall("tag")
-          for tag in tags:
-              this_obj[tag.attrib['k']] = tag.attrib['v']
-              #print(tag.attrib["k"],": ",tag.attrib["v"])
+          #print(len(objs_created)," created. ",len(objs_deleted)," deleted.",len(objs_modified)," modified.")
 
-          new_ver_objects.append(this_obj)
+          for obj in objs_modified:
+              #print("way ",obj.attrib["id"])
+              this_obj = {"id":obj.attrib['id'],"version":int(obj.attrib['version'])}
+              tags = obj.findall("tag")
+              for thisTag in tags:
+                  this_obj[thisTag.attrib['k']] = thisTag.attrib['v']
 
-      for obj in new_ver_objects:
-          print(obj)
+              new_ver_objects.append(this_obj)
+
+      else:
+          objs_modified = root.findall("./modify/{osm_obj_type}".format(const_tag=const_tag,osm_obj_type=osm_obj_type))
+          objs_created = root.findall("./create/{osm_obj_type}".format(const_tag=const_tag,osm_obj_type=osm_obj_type))
+          objs_deleted = root.findall("./delete/{osm_obj_type}".format(const_tag=const_tag,osm_obj_type=osm_obj_type))
+          for obj in objs_modified:
+              #print("way ",obj.attrib["id"])
+              this_obj = {"id":obj.attrib['id'],"version":int(obj.attrib['version'])}
+              tags = obj.findall("tag")
+              for tag in tags:
+                  this_obj[tag.attrib['k']] = tag.attrib['v']
+
+              new_ver_objects.append(this_obj)
 
 
   if print_version_lists:
@@ -115,7 +114,7 @@ def count_tag_change(changeset,tag, osm_obj_type="*",const_tag="none"):
           print()
 
       #See what values changed
-      changed_values = 0
+      changes = {'added':0,'modified':0,'deleted':0}
       for i in range(len(old_ver_objects)):
           old_value = old_ver_objects[i]["value"]
           if new_ver_objects[i].get(tag,False):
@@ -123,16 +122,24 @@ def count_tag_change(changeset,tag, osm_obj_type="*",const_tag="none"):
           else:
               new_value = None
 
-          '''
-          new_value = new_ver_objects[i][tag]
-          '''
+          if old_value == None:
+              if new_value != None:
+                  print('add')
+                  changes['added'] += 1
+          else:
+              if new_value != None:
+                  print('change')
+                  changes['modified'] += 1
+              else:
+                  print('delete')
+                  changes['deleted'] += 1
+
           if old_value != new_value:
               print(old_value," became ",new_value)
-              changed_values += 1
           else:
               print(old_value, "didn't change")
 
-      return changed_values
+      return changes
   else:
       return 0
 
@@ -199,5 +206,4 @@ def overpass_query(query):
     else:
         raise ValueError("Unexpected content type ({}) from the query: {}".format(content_type, query))
 
-name_changes = count_tag_change(73198966,"name","way","highway")
-print(name_changes," names were changed in this changeset")
+print(count_tag_change([73119881],"name","way","highway"))
