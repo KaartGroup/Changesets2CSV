@@ -1,0 +1,43 @@
+{
+  "version": 0.6,
+  "generator": "Overpass API 0.7.55.7 8b86ff77",
+  "osm3s": {
+    "timestamp_osm_base": "2019-08-08T15:54:03Z",
+    "copyright": "The data included in this document is from www.openstreetmap.org. The data is made available under ODbL."
+  },
+  "elements": [
+
+{
+  "type": "way",
+  "id": 314044995,
+  "timestamp": "2014-11-22T23:25:55Z",
+  "version": 1,
+  "changeset": 26962688,
+  "user": "Mark Newnham",
+  "uid": 994480,
+  "nodes": [
+    2395709086,
+    3200797209,
+    3200797216
+  ],
+  "tags": {
+    "tracktype": "grade1",
+    "name": "North Avenue",
+    "surface": "asphalt",
+    "sidewalk": "none",
+    "source:hgv:national_network": "CDOT \"Highway Data Explorer\"",
+    "source": "tiger",
+    "CDOT_route": "006B",
+    "NHS": "yes",
+    "alt_name": "United States Highway 6",
+    "hgv": "designated",
+    "hgv:national_network": "yes",
+    "highway": "primary",
+    "lanes": "2",
+    "oneway": "yes",
+    "ref": "US 6"
+  }
+}
+
+  ]
+}
