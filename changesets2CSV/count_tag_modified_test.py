@@ -20,14 +20,14 @@ import doctest
 
 USER_AGENT = "trackDownload/0.1 (lucas.bingham@kaartgroup.com)"
 
-print_version_lists = True
+print_version_lists = False
 print_query = False
 print_query_response = False
 object_limit_for_query=0
 dont_run_query = True
-dont_process_query = True
+dont_process_query = False
 
-def count_tag_change(changeset,tag, change_type="*", osm_obj_type="*",const_tag="none"):
+def count_tag_change(changeset,tag, osm_obj_type="*",const_tag="none"):
   api_url = "https://www.openstreetmap.org/api/0.6/changeset/{changeset}/download".format(changeset=changeset)
   dev_api_url = "https://master.apis.dev.openstreetmap.org/api/0.6/changeset/{changeset}/download".format(changeset=changeset)
   api_way_url = "https://www.openstreetmap.org/api/0.6/way/"
@@ -39,22 +39,39 @@ def count_tag_change(changeset,tag, change_type="*", osm_obj_type="*",const_tag=
   #Dictionaries of id, value, version
   new_ver_objects = []
   if const_tag != "none":
-      #List of 'osm_obj_type's that have tags 'const_tag' and 'tag'
-      objs_with_tags = root.findall("./{change_type}/{osm_obj_type}/tag[@k='{const_tag}']../tag[@k='{tag}']..".format(tag=tag,const_tag=const_tag,osm_obj_type=osm_obj_type,change_type=change_type))
-      objs_without_tags = root.findall("")
-      tags = root.findall("./{change_type}/{osm_obj_type}/tag[@k='{const_tag}']../tag[@k='{tag}']".format(tag=tag,const_tag=const_tag,osm_obj_type=osm_obj_type,change_type=change_type))
-      ids_w_const = []
-      for i in range(len(tags)):
-          new_ver_object = {"id":objs_with_tags[i].attrib["id"],"value":tags[i].attrib["v"],"version":int(objs_with_tags[i].attrib["version"])}
-          new_ver_objects.append(new_ver_object)
+      objs_modified = root.findall("./modify/{osm_obj_type}/tag[@k='{const_tag}']..".format(const_tag=const_tag,osm_obj_type=osm_obj_type))
+      objs_created = root.findall("./create/{osm_obj_type}/tag[@k='{const_tag}']..".format(const_tag=const_tag,osm_obj_type=osm_obj_type))
+      objs_deleted = root.findall("./delete/{osm_obj_type}/tag[@k='{const_tag}']..".format(const_tag=const_tag,osm_obj_type=osm_obj_type))
+      for obj in objs_modified:
+          #print("way ",obj.attrib["id"])
+          this_obj = {"id":obj.attrib['id'],"version":int(obj.attrib['version'])}
+          tags = obj.findall("tag")
+          for tag in tags:
+              this_obj[tag.attrib['k']] = tag.attrib['v']
+              #print(tag.attrib["k"],": ",tag.attrib["v"])
+
+          new_ver_objects.append(this_obj)
+
+      for obj in new_ver_objects:
+          print(obj)
   else:
-      #List of 'osm_obj_type's that have tag 'tag'
-      objs_with_tags = root.findall("./{change_type}/{osm_obj_type}/tag[@k='{tag}']..".format(tag=tag,osm_obj_type=osm_obj_type,change_type=change_type))
-      tags = root.findall("./{change_type}/{osm_obj_type}/tag[@k='{tag}']".format(tag=tag,osm_obj_type=osm_obj_type,change_type=change_type))
-      ids_w_const = []
-      for i in range(len(tags)):
-          new_ver_object = {"id":objs_with_const_tags[i].attrib["id"],"value":tags[i].attrib["v"],"version":int(objs_with_const_tags[i].attrib["version"])}
-          new_ver_objects.append(new_ver_object)
+      objs_modified = root.findall("./modify/{osm_obj_type}".format(const_tag=const_tag,osm_obj_type=osm_obj_type))
+      objs_created = root.findall("./create/{osm_obj_type}".format(const_tag=const_tag,osm_obj_type=osm_obj_type))
+      objs_deleted = root.findall("./delete/{osm_obj_type}".format(const_tag=const_tag,osm_obj_type=osm_obj_type))
+      for obj in objs_modified:
+          #print("way ",obj.attrib["id"])
+          this_obj = {"id":obj.attrib['id'],"version":int(obj.attrib['version'])}
+          tags = obj.findall("tag")
+          for tag in tags:
+              this_obj[tag.attrib['k']] = tag.attrib['v']
+              #print(tag.attrib["k"],": ",tag.attrib["v"])
+
+          new_ver_objects.append(this_obj)
+
+      for obj in new_ver_objects:
+          print(obj)
+      
+
   if print_version_lists:
       print("New_Ver: ")
       for obj in new_ver_objects: print(obj)
@@ -82,7 +99,7 @@ def count_tag_change(changeset,tag, change_type="*", osm_obj_type="*",const_tag=
       else:
           print(query_json)
 
-  if dont_process_query == False:
+  if dont_process_query == False and dont_run_query == False:
       #Dictionaries of id, value, version
       old_ver_objects = []
       for element in query_json["elements"]:
@@ -174,5 +191,5 @@ def overpass_query(query):
     else:
         raise ValueError("Unexpected content type ({}) from the query: {}".format(content_type, query))
 
-name_changes = count_tag_change(73198966,"name","*","way","highway")
+name_changes = count_tag_change(73198966,"name","way","highway")
 print(name_changes," names were changed in this changeset")
