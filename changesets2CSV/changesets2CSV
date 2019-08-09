@@ -379,10 +379,6 @@ def changeset_csv(output_file, changesets, name=None, summary=False):
             delete_count = 0
             discussion_count = 0
 
-            name_add_count = 0
-            name_change_count = 0
-            name_remove_count = 0
-
             changeset_ids = []
             for set in changesets:
                 changeset_ids.append(set.get('id'))
@@ -426,9 +422,9 @@ def changeset_csv(output_file, changesets, name=None, summary=False):
                          'Created at': '',
                          'Closed at': '',
                          'Changes': '',
-                         'Added': name_changes['added'],
-                         'Modified': name_changes['modified'],
-                         'Deleted': name_changes['deleted'],
+                         'Added':"Names " +str(name_changes['added']),
+                         'Modified':"Names " +str(name_changes['modified']),
+                         'Deleted':"Names " +str(name_changes['deleted']),
                          'Discussions': '',
                          'URL': ''}
             csv_writer.writerow(testset)
