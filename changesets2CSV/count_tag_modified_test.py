@@ -23,7 +23,7 @@ USER_AGENT = "trackDownload/0.1 (lucas.bingham@kaartgroup.com)"
 
 def count_tag_change(changesets,tag, osm_obj_type="*",const_tag="none"):
   #Testing variables
-  print_version_lists = True
+  print_version_lists = False
   print_query = False
   print_query_response = False
   object_limit_for_query=0
@@ -37,6 +37,7 @@ def count_tag_change(changesets,tag, osm_obj_type="*",const_tag="none"):
       dev_api_url = "https://master.apis.dev.openstreetmap.org/api/0.6/changeset/{changeset}/download".format(changeset=changeset)
       api_way_url = "https://www.openstreetmap.org/api/0.6/way/"
       api_url = api_url
+      print("For changeset ", changeset)
       session = CacheControl(requests.session())
       result = session.get(api_url).text
       root = ET.fromstring(result)
@@ -71,7 +72,6 @@ def count_tag_change(changesets,tag, osm_obj_type="*",const_tag="none"):
 
               new_ver_objects.append(this_obj)
 
-
   if print_version_lists:
       print("New_Ver: ")
       for obj in new_ver_objects: print(obj)
@@ -92,7 +92,6 @@ def count_tag_change(changesets,tag, osm_obj_type="*",const_tag="none"):
 
   if dont_run_query == False:
       query_json = overpass_query(query)
-
   if print_query_response:
       if dont_run_query:
           print("Cannot print query if it was not run")
@@ -113,8 +112,13 @@ def count_tag_change(changesets,tag, osm_obj_type="*",const_tag="none"):
           for obj in old_ver_objects: print(obj)
           print()
 
+
       #See what values changed
       changes = {'added':0,'modified':0,'deleted':0}
+      print(len(objs_created))
+      changes['added'] += len(objs_created)
+      print(len(objs_deleted))
+      changes['deleted'] += len(objs_deleted)
       for i in range(len(old_ver_objects)):
           old_value = old_ver_objects[i]["value"]
           if new_ver_objects[i].get(tag,False):
