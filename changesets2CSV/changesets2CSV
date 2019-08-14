@@ -25,6 +25,7 @@ import ssl
 from xlsxwriter.workbook import Workbook
 
 TEST_OVERPASS_USER_AGENT = "trackDownload/0.1 (lucas.bingham@kaartgroup.com)"
+TEST_JSON_DICT = {'tags':[{'tag':'name','const':'highway'}],'users':[{'user_id':'9320902','name':'Traaker_L'}]}
 
 def valid_date(s):
     try:
@@ -49,9 +50,17 @@ def create_summary(args):
     edit_total = 0
     disc_total = 0
     epc_total = 0  # edits per changeset
+    add_total = 0
+    mod_total = 0
+    delete_total = 0
     summary = []
     with open(args.users, mode='r') as f:
-        users = csv.DictReader(f)
+        #users = csv.DictReader(f)
+        users = TEST_JSON_DICT['users']
+        for user in users:
+            print(user['name'])
+            print(user['user_id'])
+
         for user in users:
             print("Processing changesets for {} ...".format(str(user['name'])), end="\r")
             out_file = os.path.join(args.output, str(user['name']) + '.csv')
@@ -68,17 +77,25 @@ def create_summary(args):
             changeset_total += counts['Changesets']
             edit_total += counts['Edits']
             disc_total += counts['Discussions']
+            add_total += counts['Additions']
+            mod_total += counts['Modifications']
+            delete_total += counts['Deletions']
             time.sleep(10)
             print("Processing changesets for {} ... Done\n".format(str(user['name'])))
 
     try:
         epc_total = round((edit_total / changeset_total), 2)
+
+
         summary.append({
             'Editor': 'TOTAL',
             'Changesets': changeset_total,
             'Edits': edit_total,
             'Discussions': disc_total,
-            'Edits/Changeset': epc_total
+            'Edits/Changeset': epc_total,
+            'Additions': add_total,
+            'Modifications': mod_total,
+            'Deletions': delete_total
         })
         summary_csv(args, os.path.join(args.output, "summary.csv"), summary)
     except ZeroDivisionError:
@@ -276,10 +293,6 @@ def count_tag_change(changesets,tag, osm_obj_type="*",const_tag="none"):
 
       #See what values changed
       changes = {'added':0,'modified':0,'deleted':0}
-      print(len(objs_created))
-      changes['added'] += len(objs_created)
-      print(len(objs_deleted))
-      changes['deleted'] += len(objs_deleted)
       for i in range(len(old_ver_objects)):
           old_value = old_ver_objects[i]["value"]
           if new_ver_objects[i].get(tag,False):
@@ -306,7 +319,7 @@ def count_tag_change(changesets,tag, osm_obj_type="*",const_tag="none"):
 
       return changes
   else:
-      return {"testing"}
+      return {'added':0,'modified':0,'deleted':0}
 
 def get_changesets(user=None, start_time=None, end_time=None, bbox=None):
     """Get the changesets for a user between start_time and end_time with no bbox
