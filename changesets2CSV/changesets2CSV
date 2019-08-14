@@ -55,7 +55,6 @@ def create_summary(args):
     delete_total = 0
     summary = []
     with open(args.users, mode='r') as f:
-        #users = csv.DictReader(f)
         users = TEST_JSON_DICT['users']
         for user in users:
             print(user['name'])
@@ -209,7 +208,7 @@ def count_tag_change(changesets,tag, osm_obj_type="*",const_tag="none"):
   dont_run_query = False
   dont_process_query = False
   #TODO: sort data of tag changes by changeset for column data in csv
-  #changeset_tag_changes = {12345:{'tag_added':0,'tag_modified':0,'tag_deleted':0}}
+  #changesets = [{'id':12345,'objects':[]}]
   new_ver_objects = []
 
   #Get all objects touched in each changeset
@@ -218,7 +217,6 @@ def count_tag_change(changesets,tag, osm_obj_type="*",const_tag="none"):
       api_url = "https://www.openstreetmap.org/api/0.6/changeset/{changeset}/download".format(changeset=changeset)
       dev_api_url = "https://master.apis.dev.openstreetmap.org/api/0.6/changeset/{changeset}/download".format(changeset=changeset)
       api_url = api_url
-      print("For changeset ", changeset)
       session = CacheControl(requests.session())
       result = session.get(api_url).text
       root = ET.fromstring(result)
@@ -332,6 +330,7 @@ def count_tag_change(changesets,tag, osm_obj_type="*",const_tag="none"):
               print(old_value, "didn't change")
 
       #TODO: have this return a dictionary that lists add/mod/del tag for each changeset
+      #changeset_tag_changes = {12345:{'tag_added':0,'tag_modified':0,'tag_deleted':0}}
       return changes
   else:
       return {'added':0,'modified':0,'deleted':0}
@@ -416,6 +415,7 @@ def changeset_csv(output_file, changesets, name=None, summary=False):
             changeset_ids = []
             for set in changesets:
                 changeset_ids.append(set.get('id'))
+            #TODO: iterate through "JSON" to get tags that we want to check
             name_changes = count_tag_change(changeset_ids,"name", "way", "highway")
             print(name_changes)
 
@@ -448,7 +448,7 @@ def changeset_csv(output_file, changesets, name=None, summary=False):
 
                 csv_writer.writerow(changeset)
 
-            #TODO: remove this to be replace by column data
+            #TODO: remove this to be replaced by column data
             testset = {'Username': '',
                          'ID': '',
                          'Comment': '',
