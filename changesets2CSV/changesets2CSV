@@ -205,14 +205,17 @@ def count_tag_change(changesets,tag, osm_obj_type="*",const_tag="none"):
   print_query = False
   print_query_response = False
   object_limit_for_query=0
-  dont_run_query = False
+  dont_run_query = True
   dont_process_query = False
   #TODO: sort data of tag changes by changeset for column data in csv
-  #changesets = [{'id':12345,'objects':[]}]
+  #changesets = {<some_id>:[<objects>]}
+  changes_by_changeset = {}
   new_ver_objects = []
 
   #Get all objects touched in each changeset
   for changeset in changesets:
+      #New changeset in list
+      changes_by_changeset[changeset] = [] #?
       #Request XML for each changeset
       api_url = "https://www.openstreetmap.org/api/0.6/changeset/{changeset}/download".format(changeset=changeset)
       dev_api_url = "https://master.apis.dev.openstreetmap.org/api/0.6/changeset/{changeset}/download".format(changeset=changeset)
@@ -235,6 +238,7 @@ def count_tag_change(changesets,tag, osm_obj_type="*",const_tag="none"):
               for thisTag in tags:
                   this_obj[thisTag.attrib['k']] = thisTag.attrib['v']
 
+              #changes_by_changeset[changeset].append(this_obj)
               new_ver_objects.append(this_obj)
 
       #If we only care about the tag being changed

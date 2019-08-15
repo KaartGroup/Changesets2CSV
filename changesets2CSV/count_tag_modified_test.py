@@ -19,6 +19,7 @@ import doctest
 
 
 USER_AGENT = "trackDownload/0.1 (lucas.bingham@kaartgroup.com)"
+TEST_JSON_DICT = {'tags':[{'tag':'name','const':'highway'}],'users':[{'user_id':'9320902','name':'Traaker_L'}]}
 
 
 def count_tag_change(changesets,tag, osm_obj_type="*",const_tag="none"):
@@ -27,44 +28,55 @@ def count_tag_change(changesets,tag, osm_obj_type="*",const_tag="none"):
   print_query = False
   print_query_response = False
   object_limit_for_query=0
-  dont_run_query = False
+  dont_run_query = True
   dont_process_query = False
-  #Dictionaries of id, value, version
+  #TODO: sort data of tag changes by changeset for column data in csv
+  #changesets = {<some_id>:[<objects>]}
+  objects_by_changeset = {}
   new_ver_objects = []
 
+  #Get all objects touched in each changeset
   for changeset in changesets:
+      #New changeset in list
+      objects_by_changeset[changeset] = [] #?
+      #Request XML for each changeset
       api_url = "https://www.openstreetmap.org/api/0.6/changeset/{changeset}/download".format(changeset=changeset)
       dev_api_url = "https://master.apis.dev.openstreetmap.org/api/0.6/changeset/{changeset}/download".format(changeset=changeset)
-      api_way_url = "https://www.openstreetmap.org/api/0.6/way/"
       api_url = api_url
-      print("For changeset ", changeset)
       session = CacheControl(requests.session())
       result = session.get(api_url).text
       root = ET.fromstring(result)
 
-
+      #If we are looking for a constant tag
       if const_tag != "none":
+          #Retrieve all objects that have the tags we're looking for
           objs_modified = root.findall("./modify/{osm_obj_type}/tag[@k='{const_tag}']..".format(const_tag=const_tag,osm_obj_type=osm_obj_type))
           objs_created = root.findall("./create/{osm_obj_type}/tag[@k='{const_tag}']..".format(const_tag=const_tag,osm_obj_type=osm_obj_type))
           objs_deleted = root.findall("./delete/{osm_obj_type}/tag[@k='{const_tag}']..".format(const_tag=const_tag,osm_obj_type=osm_obj_type))
 
-          #print(len(objs_created)," created. ",len(objs_deleted)," deleted.",len(objs_modified)," modified.")
-
+          #Store each modified object's data in our list, new_ver_objects, as dictionaries
           for obj in objs_modified:
-              #print("way ",obj.attrib["id"])
               this_obj = {"id":obj.attrib['id'],"version":int(obj.attrib['version'])}
               tags = obj.findall("tag")
               for thisTag in tags:
                   this_obj[thisTag.attrib['k']] = thisTag.attrib['v']
 
-              new_ver_objects.append(this_obj)
+              objects_by_changeset[changeset].append(this_obj)
+              #new_ver_objects.append(this_obj)
 
+          #print(changeset)
+          #print(objects_by_changeset[changeset])
+
+
+      #If we only care about the tag being changed
       else:
+          #Retrieve all objects that have the tags we're looking for
           objs_modified = root.findall("./modify/{osm_obj_type}".format(const_tag=const_tag,osm_obj_type=osm_obj_type))
           objs_created = root.findall("./create/{osm_obj_type}".format(const_tag=const_tag,osm_obj_type=osm_obj_type))
           objs_deleted = root.findall("./delete/{osm_obj_type}".format(const_tag=const_tag,osm_obj_type=osm_obj_type))
+
+          #Store each modified object's data in our list, new_ver_objects, as dictionaries
           for obj in objs_modified:
-              #print("way ",obj.attrib["id"])
               this_obj = {"id":obj.attrib['id'],"version":int(obj.attrib['version'])}
               tags = obj.findall("tag")
               for tag in tags:
@@ -72,25 +84,36 @@ def count_tag_change(changesets,tag, osm_obj_type="*",const_tag="none"):
 
               new_ver_objects.append(this_obj)
 
+  #print(objects_by_changeset)
+  for this_k, this_v in objects_by_changeset.items():
+      print(this_k,": ",this_v)
+
+
+  #4Testing: print objects and data in new_ver_objects list
   if print_version_lists:
       print("New_Ver: ")
       for obj in new_ver_objects: print(obj)
       print()
 
+  #Build query to get previous versions of all objects in new_ver_objects
+  #Start of Overpass Query
   query = "[out:json][timeout:25];"
   query_count = 0
+  #Build each query part for each object
   for obj in new_ver_objects:
       #Can this ever happen?
       if obj["version"] > 1 and (query_count < object_limit_for_query or object_limit_for_query == 0):
           if object_limit_for_query != 0:
               print("Object ",query_count+1," of ",object_limit_for_query)
+          #Thank you Taylor
           query_part = "timeline({osm_obj_type}, {osm_id}, {prev_version}); for (t['created']) {{ retro(_.val) {{ {osm_obj_type}(id:{osm_id}); out meta;}} }}"\
           .format(osm_obj_type = osm_obj_type, osm_id = obj["id"],prev_version = int(obj["version"])-1)
           query += query_part
           query_count += 1
+  #4Testing: print out the query and/or response
   if print_query: print(query)
-
   if dont_run_query == False:
+      #Submit the query
       query_json = overpass_query(query)
   if print_query_response:
       if dont_run_query:
@@ -101,24 +124,24 @@ def count_tag_change(changesets,tag, osm_obj_type="*",const_tag="none"):
   if dont_process_query == False and dont_run_query == False:
       #Dictionaries of id, value, version
       old_ver_objects = []
+
+      #Iterate through query result
       for element in query_json["elements"]:
           these_tags = element['tags']
+          #If tag is present in this version
           if these_tags.get(tag,None) != None:
               old_ver_objects.append({"id":element['id'],'value':element['tags'][tag],"version":element['version']})
+          #If tag is not present in this version
           else:
               old_ver_objects.append({"id":element['id'],'value':None,"version":element['version']})
+      #4Testing: Print list of old-version objects
       if print_version_lists:
           print("Old_Ver: ")
           for obj in old_ver_objects: print(obj)
           print()
 
-
       #See what values changed
       changes = {'added':0,'modified':0,'deleted':0}
-      print(len(objs_created))
-      changes['added'] += len(objs_created)
-      print(len(objs_deleted))
-      changes['deleted'] += len(objs_deleted)
       for i in range(len(old_ver_objects)):
           old_value = old_ver_objects[i]["value"]
           if new_ver_objects[i].get(tag,False):
@@ -143,10 +166,11 @@ def count_tag_change(changesets,tag, osm_obj_type="*",const_tag="none"):
           else:
               print(old_value, "didn't change")
 
+      #TODO: have this return a dictionary that lists add/mod/del tag for each changeset
+      #changeset_tag_changes = {12345:{'tag_added':0,'tag_modified':0,'tag_deleted':0}}
       return changes
   else:
-      return {"testing"}
-
+      return {'added':0,'modified':0,'deleted':0}
 
 
 def overpass_status(api_status_url = "https://overpass-api.de/api/status"):
