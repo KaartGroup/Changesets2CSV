@@ -202,20 +202,20 @@ def overpass_query(query):
 def count_tag_change(changesets,tag, osm_obj_type="*",const_tag="none"):
   #Testing variables
   print_version_lists = False
-  print_query = False
-  print_query_response = False
   object_limit_for_query=0
-  dont_run_query = True
+  print_query = False
+  dont_run_query = False
+  print_query_response = False
   dont_process_query = False
   #TODO: sort data of tag changes by changeset for column data in csv
   #changesets = {<some_id>:[<objects>]}
-  changes_by_changeset = {}
-  new_ver_objects = []
+  objects_by_changeset = {}
+  #new_ver_objects = []
 
   #Get all objects touched in each changeset
   for changeset in changesets:
       #New changeset in list
-      changes_by_changeset[changeset] = [] #?
+      objects_by_changeset[changeset] = [] #?
       #Request XML for each changeset
       api_url = "https://www.openstreetmap.org/api/0.6/changeset/{changeset}/download".format(changeset=changeset)
       dev_api_url = "https://master.apis.dev.openstreetmap.org/api/0.6/changeset/{changeset}/download".format(changeset=changeset)
@@ -238,8 +238,12 @@ def count_tag_change(changesets,tag, osm_obj_type="*",const_tag="none"):
               for thisTag in tags:
                   this_obj[thisTag.attrib['k']] = thisTag.attrib['v']
 
-              #changes_by_changeset[changeset].append(this_obj)
-              new_ver_objects.append(this_obj)
+              objects_by_changeset[changeset].append(this_obj)
+              #new_ver_objects.append(this_obj)
+
+          #print(changeset)
+          #print(objects_by_changeset[changeset])
+
 
       #If we only care about the tag being changed
       else:
@@ -255,7 +259,20 @@ def count_tag_change(changesets,tag, osm_obj_type="*",const_tag="none"):
               for tag in tags:
                   this_obj[tag.attrib['k']] = tag.attrib['v']
 
-              new_ver_objects.append(this_obj)
+              objects_by_changeset[changeset].append(this_obj)
+              #new_ver_objects.append(this_obj)
+
+
+  change_count_by_changeset = {}
+  #print(objects_by_changeset)
+
+  #Count number of objects per changeset
+  for this_k, this_v in objects_by_changeset.items():
+      change_count_by_changeset[this_k] = len(this_v)
+
+
+
+
 
   #4Testing: print objects and data in new_ver_objects list
   if print_version_lists:
@@ -267,40 +284,90 @@ def count_tag_change(changesets,tag, osm_obj_type="*",const_tag="none"):
   #Start of Overpass Query
   query = "[out:json][timeout:25];"
   query_count = 0
-  #Build each query part for each object
-  for obj in new_ver_objects:
-      #Can this ever happen?
-      if obj["version"] > 1 and (query_count < object_limit_for_query or object_limit_for_query == 0):
-          if object_limit_for_query != 0:
-              print("Object ",query_count+1," of ",object_limit_for_query)
-          #Thank you Taylor
-          query_part = "timeline({osm_obj_type}, {osm_id}, {prev_version}); for (t['created']) {{ retro(_.val) {{ {osm_obj_type}(id:{osm_id}); out meta;}} }}"\
-          .format(osm_obj_type = osm_obj_type, osm_id = obj["id"],prev_version = int(obj["version"])-1)
-          query += query_part
-          query_count += 1
+  for this_set in objects_by_changeset:
+      #Build each query part for each object
+      #print(objects_by_changeset[changes])
+      if (query_count < object_limit_for_query or object_limit_for_query == 0):
+          for obj in objects_by_changeset[this_set]:
+
+              #Can this ever happen?
+              if obj["version"] > 1 and (query_count < object_limit_for_query or object_limit_for_query == 0):
+                  if object_limit_for_query != 0:
+                      print("Object ",query_count+1," of ",object_limit_for_query)
+                  #Thank you Taylor
+                  query_part = "timeline({osm_obj_type}, {osm_id}, {prev_version}); for (t['created']) {{ retro(_.val) {{ {osm_obj_type}(id:{osm_id}); out meta;}} }}"\
+                  .format(osm_obj_type = osm_obj_type, osm_id = obj["id"],prev_version = int(obj["version"])-1)
+                  query += query_part
+                  query_count += 1
+
   #4Testing: print out the query and/or response
   if print_query: print(query)
+
   if dont_run_query == False:
       #Submit the query
       query_json = overpass_query(query)
+
   if print_query_response:
       if dont_run_query:
-          print("Cannot print query if it was not run")
+          print("Cannot print query response if it was not run")
       else:
           print(query_json)
 
+
+  #print(change_count_by_changeset)
+
+  print(changesets[1])
+
+  '''
+  print('_A_')
+  for set in change_count_by_changeset:
+      print(set)
+  print('_B_')
+  for set in change_count_by_changeset:
+      print(change_count_by_changeset[set])
+  '''
   if dont_process_query == False and dont_run_query == False:
       #Dictionaries of id, value, version
       old_ver_objects = []
+      old_objects_by_changeset = {}
+      #old_objects_by_changeset{<id>:[<objects>]}
+      current_set_index = 0
+      objects_added = 0
+
+      old_objects_by_changeset[changesets[current_set_index]] = []
+
       #Iterate through query result
       for element in query_json["elements"]:
           these_tags = element['tags']
+          #print("set is ", changesets[current_set_index])
           #If tag is present in this version
           if these_tags.get(tag,None) != None:
-              old_ver_objects.append({"id":element['id'],'value':element['tags'][tag],"version":element['version']})
+              old_objects_by_changeset[changesets[current_set_index]].append({"id":element['id'],'value':element['tags'][tag],"version":element['version']})
+              objects_added += 1
+              #old_ver_objects.append({"id":element['id'],'value':element['tags'][tag],"version":element['version']})
           #If tag is not present in this version
           else:
-              old_ver_objects.append({"id":element['id'],'value':None,"version":element['version']})
+              old_objects_by_changeset[changesets[current_set_index]].append({"id":element['id'],'value':None,"version":element['version']})
+              objects_added += 1
+              #old_ver_objects.append({"id":element['id'],'value':None,"version":element['version']})
+
+          #print("We have counted ",objects_added, " objects in this set")
+          #print("Set ",changesets[current_set_index]," has ",change_count_by_changeset[changesets[current_set_index]]," objects")
+          if objects_added == change_count_by_changeset[changesets[current_set_index]]:
+              objects_added = 0
+              if current_set_index + 1 <= len(changesets) - 1:
+                  current_set_index += 1
+                  old_objects_by_changeset[changesets[current_set_index]] = []
+
+      '''
+      print('_OLD')
+      for set, changes in old_objects_by_changeset.items():
+          print(set,": ",changes)
+      print('_NEW_')
+      for set, changes in objects_by_changeset.items():
+          print(set,": ",changes)
+      '''
+
       #4Testing: Print list of old-version objects
       if print_version_lists:
           print("Old_Ver: ")
@@ -308,37 +375,55 @@ def count_tag_change(changesets,tag, osm_obj_type="*",const_tag="none"):
           print()
 
       #See what values changed
-      changes = {'added':0,'modified':0,'deleted':0}
-      for i in range(len(old_ver_objects)):
-          old_value = old_ver_objects[i]["value"]
-          if new_ver_objects[i].get(tag,False):
-              new_value = new_ver_objects[i][tag]
-          else:
-              new_value = None
+      #found_changes = {'added':0,'modified':0,'deleted':0}
+      changes_by_changeset = {}
+      for set, changes in old_objects_by_changeset.items():
+          print('initializing for ', set)
+          changes_by_changeset[set] = {'added':0,'modified':0,'deleted':0}
 
-          if old_value == None:
-              if new_value != None:
-                  print('add')
-                  changes['added'] += 1
-          else:
-              if new_value != None:
-                  print('change')
-                  changes['modified'] += 1
+      for set,changes in old_objects_by_changeset.items():
+          this_old_set = old_objects_by_changeset[set]
+          this_new_set = objects_by_changeset[set]
+
+          #print('old set: ', this_old_set)
+          #print('new set: ', this_new_set)
+          for i in range(len(this_old_set)):
+              old_value = this_old_set[i]["value"]
+              if this_new_set[i].get(tag,False):
+                  new_value = this_new_set[i][tag]
               else:
-                  print('delete')
-                  changes['deleted'] += 1
+                  new_value = None
 
-          if old_value != new_value:
-              print(old_value," became ",new_value)
-          else:
-              print(old_value, "didn't change")
+              if old_value == None:
+                  if new_value != None:
+                      print('add')
+                      if old_value != new_value:
+                          print(old_value," became ",new_value)
+                          changes_by_changeset[set]['added'] += 1
+                      else:
+                          print(old_value," didn't change")
+              else:
+                  if new_value != None:
+                      print('change')
+                      if old_value != new_value:
+                          print(old_value," became ",new_value)
+                          changes_by_changeset[set]['modified'] += 1
+                      else:
+                          print(old_value," didn't change")
+                  else:
+                      print('delete')
+                      if old_value != new_value:
+                          print(old_value," became ",new_value)
+                          changes_by_changeset[set]['deleted'] += 1
+                      else:
+                          print(old_value," didn't change")
 
-      #TODO: have this return a dictionary that lists add/mod/del tag for each changeset
-      #changeset_tag_changes = {12345:{'tag_added':0,'tag_modified':0,'tag_deleted':0}}
-      return changes
+
+
+
+      return changes_by_changeset
   else:
       return {'added':0,'modified':0,'deleted':0}
-
 def get_changesets(user=None, start_time=None, end_time=None, bbox=None):
     """Get the changesets for a user between start_time and end_time with no bbox
     >>> len(get_changesets(user="vorpalblade", start_time="2019-07-07", end_time="2019-07-08"))

@@ -220,20 +220,28 @@ def count_tag_change(changesets,tag, osm_obj_type="*",const_tag="none"):
               if old_value == None:
                   if new_value != None:
                       print('add')
-                      print(old_value," became ",new_value)
-                      changes_by_changeset[set]['added'] += 1
+                      if old_value != new_value:
+                          print(old_value," became ",new_value)
+                          changes_by_changeset[set]['added'] += 1
+                      else:
+                          print(old_value," didn't change")
               else:
                   if new_value != None:
                       print('change')
-                      print(old_value," became ",new_value)
-
-                      changes_by_changeset[set]['modified'] += 1
+                      if old_value != new_value:
+                          print(old_value," became ",new_value)
+                          changes_by_changeset[set]['modified'] += 1
+                      else:
+                          print(old_value," didn't change")
                   else:
                       print('delete')
-                      print(old_value," became ",new_value)
-                      changes_by_changeset[set]['deleted'] += 1
+                      if old_value != new_value:
+                          print(old_value," became ",new_value)
+                          changes_by_changeset[set]['deleted'] += 1
+                      else:
+                          print(old_value," didn't change")
 
-              
+
 
       #TODO: have this return a dictionary that lists add/mod/del tag for each changeset
       #changeset_tag_changes = {12345:{'tag_added':0,'tag_modified':0,'tag_deleted':0}}
