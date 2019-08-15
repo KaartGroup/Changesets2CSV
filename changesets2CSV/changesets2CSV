@@ -204,7 +204,7 @@ def overpass_query(query):
 
 def count_tag_change(changesets,tag, osm_obj_type="*",const_tag="none"):
   #Testing variables
-  print_version_lists = False
+  print_version_lists = True
   object_limit_for_query=0
   print_query = False
   dont_run_query = False
@@ -280,7 +280,7 @@ def count_tag_change(changesets,tag, osm_obj_type="*",const_tag="none"):
   #4Testing: print objects and data in new_ver_objects list
   if print_version_lists:
       print("New_Ver: ")
-      for obj in new_ver_objects: print(obj)
+      for obj in objects_by_changeset: print(objects_by_changeset[obj])
       print()
 
   #Build query to get previous versions of all objects in new_ver_objects
@@ -332,21 +332,23 @@ def count_tag_change(changesets,tag, osm_obj_type="*",const_tag="none"):
           these_tags = element['tags']
           #print("set is ", changesets[current_set_index])
           #TODO: Grab all tags from old version objects
-          #this_obj = {"id":element['id'],"version":element['version']}
-          #for key, value in element['tags'].items():
-              #print(key,': ',value)
-              #this_obj[key] = value
-              #
+          this_obj = {"id":element['id'],"version":element['version']}
+          for key, value in element['tags'].items():
+              this_obj[key] = value
+
+          old_objects_by_changeset[changesets[current_set_index]].append(this_obj)
+          objects_added += 1
+
           #If tag is present in this version
+          '''
           if these_tags.get(tag,None) != None:
               old_objects_by_changeset[changesets[current_set_index]].append({"id":element['id'],'value':element['tags'][tag],"version":element['version']})
               objects_added += 1
-
           #If tag is not present in this version
           else:
               old_objects_by_changeset[changesets[current_set_index]].append({"id":element['id'],'value':None,"version":element['version']})
               objects_added += 1
-
+          '''
 
           if objects_added == change_count_by_changeset[changesets[current_set_index]]:
               objects_added = 0
@@ -357,20 +359,26 @@ def count_tag_change(changesets,tag, osm_obj_type="*",const_tag="none"):
       #4Testing: Print list of old-version objects
       if print_version_lists:
           print("Old_Ver: ")
-          for obj in old_ver_objects: print(obj)
+          for obj in old_objects_by_changeset: print(old_objects_by_changeset[obj])
           print()
 
       #See what values changed
       changes_by_changeset = {}
+      #Initialize change counts for all sets
       for set, changes in old_objects_by_changeset.items():
           changes_by_changeset[set] = {'added':0,'modified':0,'deleted':0}
 
       for set,changes in old_objects_by_changeset.items():
           this_old_set = old_objects_by_changeset[set]
           this_new_set = objects_by_changeset[set]
-
           for i in range(len(this_old_set)):
-              old_value = this_old_set[i]["value"]
+              print(i)
+              if this_old_set[i].get(tag,False):
+                  old_value = this_old_set[i][tag]
+              else:
+                  old_value = None
+
+
               if this_new_set[i].get(tag,False):
                   new_value = this_new_set[i][tag]
               else:
@@ -465,11 +473,13 @@ def get_changesets(user=None, start_time=None, end_time=None, bbox=None):
 def changeset_csv(output_file, changesets, name=None, summary=False):
     try:
         with open(output_file, 'w') as f:
-            fieldnames = ['Username', 'ID', 'Comment', 'Open', 'Created at', 'Closed at', 'Changes', 'Added', 'Modified', 'Deleted', 'Names added', 'Names modified', 'Names deleted']
+            fieldnames = ['Username', 'ID', 'Comment', 'Open', 'Created at', 'Closed at', 'Changes', 'Added', 'Modified', 'Deleted']
             #TODO: add fields for add/mod/del of tags to be checked in the "JSON"
-            field_prefixes = [TEST_JSON_DICT['tags'][0]['check']]
-            for prefix in field_prefixes:
+            field_prefixes = []
+            for tag in TEST_JSON_DICT['tags']:
+                prefix = tag['check']
                 fieldnames.extend([(prefix +' added'),(prefix+' modified'),(prefix+' deleted')])
+                field_prefixes.append(prefix)
             #fieldnames.extend ['']
             fieldnames.extend(['Discussions', 'URL'])
             csv_writer = csv.DictWriter(f, fieldnames=fieldnames)
