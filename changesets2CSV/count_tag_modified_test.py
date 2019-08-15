@@ -26,9 +26,9 @@ def count_tag_change(changesets,tag, osm_obj_type="*",const_tag="none"):
   #Testing variables
   print_version_lists = False
   print_query = True
-  print_query_response = True
-  object_limit_for_query=5
+  object_limit_for_query=10
   dont_run_query = True
+  print_query_response = True
   dont_process_query = True
   #TODO: sort data of tag changes by changeset for column data in csv
   #changesets = {<some_id>:[<objects>]}
@@ -88,14 +88,14 @@ def count_tag_change(changesets,tag, osm_obj_type="*",const_tag="none"):
 
   change_count_by_changeset = {}
   #print(objects_by_changeset)
-  '''if false:
+
   for this_k, this_v in objects_by_changeset.items():
       change_count_by_changeset[this_k] = len(this_v)
-      print(change_count_by_changeset[this_k])
-  '''
+      #print(change_count_by_changeset[this_k])
+
 
   for changes in objects_by_changeset:
-      pass#print(objects_by_changeset[changes])
+     print(objects_by_changeset[changes])
 
   #4Testing: print objects and data in new_ver_objects list
   if print_version_lists:
@@ -110,16 +110,18 @@ def count_tag_change(changesets,tag, osm_obj_type="*",const_tag="none"):
   for this_set in objects_by_changeset:
       #Build each query part for each object
       #print(objects_by_changeset[changes])
-      for obj in objects_by_changeset[changes]:
-          #Can this ever happen?
-          if obj["version"] > 1 and (query_count < object_limit_for_query or object_limit_for_query == 0):
-              if object_limit_for_query != 0:
-                  print("Object ",query_count+1," of ",object_limit_for_query)
-              #Thank you Taylor
-              query_part = "timeline({osm_obj_type}, {osm_id}, {prev_version}); for (t['created']) {{ retro(_.val) {{ {osm_obj_type}(id:{osm_id}); out meta;}} }}"\
-              .format(osm_obj_type = osm_obj_type, osm_id = obj["id"],prev_version = int(obj["version"])-1)
-              query += query_part
-              query_count += 1
+      if (query_count < object_limit_for_query or object_limit_for_query == 0):
+          for obj in objects_by_changeset[this_set]:
+
+              #Can this ever happen?
+              if obj["version"] > 1 and (query_count < object_limit_for_query or object_limit_for_query == 0):
+                  if object_limit_for_query != 0:
+                      print("Object ",query_count+1," of ",object_limit_for_query)
+                  #Thank you Taylor
+                  query_part = "timeline({osm_obj_type}, {osm_id}, {prev_version}); for (t['created']) {{ retro(_.val) {{ {osm_obj_type}(id:{osm_id}); out meta;}} }}"\
+                  .format(osm_obj_type = osm_obj_type, osm_id = obj["id"],prev_version = int(obj["version"])-1)
+                  query += query_part
+                  query_count += 1
 
   #4Testing: print out the query and/or response
   if print_query: print(query)
@@ -147,6 +149,7 @@ def count_tag_change(changesets,tag, osm_obj_type="*",const_tag="none"):
           #If tag is not present in this version
           else:
               old_ver_objects.append({"id":element['id'],'value':None,"version":element['version']})
+
       #4Testing: Print list of old-version objects
       if print_version_lists:
           print("Old_Ver: ")
