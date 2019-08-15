@@ -25,15 +25,15 @@ TEST_JSON_DICT = {'tags':[{'tag':'name','const':'highway'}],'users':[{'user_id':
 def count_tag_change(changesets,tag, osm_obj_type="*",const_tag="none"):
   #Testing variables
   print_version_lists = False
-  print_query = False
-  print_query_response = False
-  object_limit_for_query=0
+  print_query = True
+  print_query_response = True
+  object_limit_for_query=5
   dont_run_query = True
-  dont_process_query = False
+  dont_process_query = True
   #TODO: sort data of tag changes by changeset for column data in csv
   #changesets = {<some_id>:[<objects>]}
   objects_by_changeset = {}
-  new_ver_objects = []
+  #new_ver_objects = []
 
   #Get all objects touched in each changeset
   for changeset in changesets:
@@ -82,12 +82,20 @@ def count_tag_change(changesets,tag, osm_obj_type="*",const_tag="none"):
               for tag in tags:
                   this_obj[tag.attrib['k']] = tag.attrib['v']
 
-              new_ver_objects.append(this_obj)
+              objects_by_changeset[changeset].append(this_obj)
+              #new_ver_objects.append(this_obj)
 
+
+  change_count_by_changeset = {}
   #print(objects_by_changeset)
+  '''if false:
   for this_k, this_v in objects_by_changeset.items():
-      print(this_k,": ",this_v)
+      change_count_by_changeset[this_k] = len(this_v)
+      print(change_count_by_changeset[this_k])
+  '''
 
+  for changes in objects_by_changeset:
+      pass#print(objects_by_changeset[changes])
 
   #4Testing: print objects and data in new_ver_objects list
   if print_version_lists:
@@ -99,25 +107,30 @@ def count_tag_change(changesets,tag, osm_obj_type="*",const_tag="none"):
   #Start of Overpass Query
   query = "[out:json][timeout:25];"
   query_count = 0
-  #Build each query part for each object
-  for obj in new_ver_objects:
-      #Can this ever happen?
-      if obj["version"] > 1 and (query_count < object_limit_for_query or object_limit_for_query == 0):
-          if object_limit_for_query != 0:
-              print("Object ",query_count+1," of ",object_limit_for_query)
-          #Thank you Taylor
-          query_part = "timeline({osm_obj_type}, {osm_id}, {prev_version}); for (t['created']) {{ retro(_.val) {{ {osm_obj_type}(id:{osm_id}); out meta;}} }}"\
-          .format(osm_obj_type = osm_obj_type, osm_id = obj["id"],prev_version = int(obj["version"])-1)
-          query += query_part
-          query_count += 1
+  for this_set in objects_by_changeset:
+      #Build each query part for each object
+      #print(objects_by_changeset[changes])
+      for obj in objects_by_changeset[changes]:
+          #Can this ever happen?
+          if obj["version"] > 1 and (query_count < object_limit_for_query or object_limit_for_query == 0):
+              if object_limit_for_query != 0:
+                  print("Object ",query_count+1," of ",object_limit_for_query)
+              #Thank you Taylor
+              query_part = "timeline({osm_obj_type}, {osm_id}, {prev_version}); for (t['created']) {{ retro(_.val) {{ {osm_obj_type}(id:{osm_id}); out meta;}} }}"\
+              .format(osm_obj_type = osm_obj_type, osm_id = obj["id"],prev_version = int(obj["version"])-1)
+              query += query_part
+              query_count += 1
+
   #4Testing: print out the query and/or response
   if print_query: print(query)
+
   if dont_run_query == False:
       #Submit the query
       query_json = overpass_query(query)
+
   if print_query_response:
       if dont_run_query:
-          print("Cannot print query if it was not run")
+          print("Cannot print query response if it was not run")
       else:
           print(query_json)
 
