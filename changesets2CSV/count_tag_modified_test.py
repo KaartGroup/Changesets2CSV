@@ -243,8 +243,7 @@ def count_tag_change(changesets,tag, osm_obj_type="*",const_tag="none"):
 
 
 
-      #TODO: have this return a dictionary that lists add/mod/del tag for each changeset
-      #changeset_tag_changes = {12345:{'tag_added':0,'tag_modified':0,'tag_deleted':0}}
+
       return changes_by_changeset
   else:
       return {'added':0,'modified':0,'deleted':0}

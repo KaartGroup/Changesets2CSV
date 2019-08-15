@@ -394,26 +394,26 @@ def count_tag_change(changesets,tag, osm_obj_type="*",const_tag="none"):
               else:
                   new_value = None
 
+
+              print(old_value," became ",new_value)
+
               if old_value == None:
                   if new_value != None:
-                      print('add')
                       if old_value != new_value:
-                          print(old_value," became ",new_value)
+                          print('add')
                           changes_by_changeset[set]['added'] += 1
                       else:
                           print(old_value," didn't change")
               else:
                   if new_value != None:
-                      print('change')
                       if old_value != new_value:
-                          print(old_value," became ",new_value)
+                          print('change')
                           changes_by_changeset[set]['modified'] += 1
                       else:
                           print(old_value," didn't change")
                   else:
-                      print('delete')
                       if old_value != new_value:
-                          print(old_value," became ",new_value)
+                          print('delete')
                           changes_by_changeset[set]['deleted'] += 1
                       else:
                           print(old_value," didn't change")
@@ -484,7 +484,7 @@ def get_changesets(user=None, start_time=None, end_time=None, bbox=None):
 def changeset_csv(output_file, changesets, name=None, summary=False):
     try:
         with open(output_file, 'w') as f:
-            fieldnames = ['Username', 'ID', 'Comment', 'Open', 'Created at', 'Closed at', 'Changes', 'Added', 'Modified', 'Deleted']
+            fieldnames = ['Username', 'ID', 'Comment', 'Open', 'Created at', 'Closed at', 'Changes', 'Added', 'Modified', 'Deleted', 'Names added', 'Names modified', 'Names deleted']
             #TODO: add fields for add/mod/del of tags to be checked in the "JSON"
             fieldnames.extend(['Discussions', 'URL'])
             csv_writer = csv.DictWriter(f, fieldnames=fieldnames)
@@ -508,7 +508,7 @@ def changeset_csv(output_file, changesets, name=None, summary=False):
             name_changes = count_tag_change(changeset_ids,"name", "way", "highway")
             print(name_changes)
 
-            #TODO: iterate through item_changes to grab the name adds, modifies, and deletes for each changeset
+            #TODO: iterate through name_changes to grab the name adds, modifies, and deletes for each changeset
             for item in changesets:
                 changeset = {'Username': item.get('user'),
                              'ID': item.get('id'),
@@ -524,9 +524,20 @@ def changeset_csv(output_file, changesets, name=None, summary=False):
                     if child.get('k') == 'comment':
                         changeset['Comment'] = child.get('v').encode('utf-8')
 
+                #General adds, modifies, deletes
                 changesetInformation = count_new_modified_deleted(changeset['ID'])
                 for key in changesetInformation:
                     changeset[key] = changesetInformation[key]
+
+                #Tag-specific adds, modifies, deletes
+                print(item.get('id'))
+                these_tag_changes = name_changes[item.get('id')]
+                for key in these_tag_changes:
+                    key_string = 'Names ' + key
+                    print(key_string)
+                    changeset[key_string] = these_tag_changes[key]
+
+
 
                 changeset_count += 1
                 add_count += changeset['Added']
@@ -538,6 +549,7 @@ def changeset_csv(output_file, changesets, name=None, summary=False):
                 csv_writer.writerow(changeset)
 
             #TODO: remove this to be replaced by column data
+            '''
             testset = {'Username': '',
                          'ID': '',
                          'Comment': '',
@@ -551,6 +563,7 @@ def changeset_csv(output_file, changesets, name=None, summary=False):
                          'Discussions': '',
                          'URL': ''}
             csv_writer.writerow(testset)
+            '''
     except Exception as e:
         print("Error creating csv {}".format(e))
         raise
