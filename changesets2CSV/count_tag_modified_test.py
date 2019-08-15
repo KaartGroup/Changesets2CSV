@@ -25,11 +25,11 @@ TEST_JSON_DICT = {'tags':[{'tag':'name','const':'highway'}],'users':[{'user_id':
 def count_tag_change(changesets,tag, osm_obj_type="*",const_tag="none"):
   #Testing variables
   print_version_lists = False
-  print_query = True
   object_limit_for_query=10
-  dont_run_query = True
-  print_query_response = True
-  dont_process_query = True
+  print_query = False
+  dont_run_query = False
+  print_query_response = False
+  dont_process_query = False
   #TODO: sort data of tag changes by changeset for column data in csv
   #changesets = {<some_id>:[<objects>]}
   objects_by_changeset = {}
@@ -89,13 +89,15 @@ def count_tag_change(changesets,tag, osm_obj_type="*",const_tag="none"):
   change_count_by_changeset = {}
   #print(objects_by_changeset)
 
+  #Count number of objects per changeset
   for this_k, this_v in objects_by_changeset.items():
       change_count_by_changeset[this_k] = len(this_v)
-      #print(change_count_by_changeset[this_k])
+
+
 
 
   for changes in objects_by_changeset:
-     print(objects_by_changeset[changes])
+     pass#print(objects_by_changeset[changes])
 
   #4Testing: print objects and data in new_ver_objects list
   if print_version_lists:
@@ -136,19 +138,60 @@ def count_tag_change(changesets,tag, osm_obj_type="*",const_tag="none"):
       else:
           print(query_json)
 
+
+  #print(change_count_by_changeset)
+
+  print(changesets[1])
+
+  '''
+  print('_A_')
+  for set in change_count_by_changeset:
+      print(set)
+  print('_B_')
+  for set in change_count_by_changeset:
+      print(change_count_by_changeset[set])
+  '''
   if dont_process_query == False and dont_run_query == False:
       #Dictionaries of id, value, version
       old_ver_objects = []
+      old_objects_by_changeset = {}
+      #old_objects_by_changeset{<id>:[<objects>]}
+      current_set_index = 0
+      objects_added = 0
+
+      old_objects_by_changeset[changesets[current_set_index]] = []
 
       #Iterate through query result
       for element in query_json["elements"]:
           these_tags = element['tags']
+          #print("set is ", changesets[current_set_index])
           #If tag is present in this version
           if these_tags.get(tag,None) != None:
-              old_ver_objects.append({"id":element['id'],'value':element['tags'][tag],"version":element['version']})
+              old_objects_by_changeset[changesets[current_set_index]].append({"id":element['id'],'value':element['tags'][tag],"version":element['version']})
+              objects_added += 1
+              #old_ver_objects.append({"id":element['id'],'value':element['tags'][tag],"version":element['version']})
           #If tag is not present in this version
           else:
-              old_ver_objects.append({"id":element['id'],'value':None,"version":element['version']})
+              old_objects_by_changeset[changesets[current_set_index]].append({"id":element['id'],'value':None,"version":element['version']})
+              objects_added += 1
+              #old_ver_objects.append({"id":element['id'],'value':None,"version":element['version']})
+
+          #print("We have counted ",objects_added, " objects in this set")
+          #print("Set ",changesets[current_set_index]," has ",change_count_by_changeset[changesets[current_set_index]]," objects")
+          if objects_added == change_count_by_changeset[changesets[current_set_index]]:
+              objects_added = 0
+              current_set_index += 1
+              old_objects_by_changeset[changesets[current_set_index]] = []
+
+      print('_OLD')
+
+      for set, changes in old_objects_by_changeset.items():
+          print(set,": ",changes)
+
+      print('_NEW_')
+
+      for set, changes in objects_by_changeset.items():
+          print(set,": ",changes)
 
       #4Testing: Print list of old-version objects
       if print_version_lists:
@@ -158,6 +201,7 @@ def count_tag_change(changesets,tag, osm_obj_type="*",const_tag="none"):
 
       #See what values changed
       changes = {'added':0,'modified':0,'deleted':0}
+      #for set,changes in old_objects_by_changeset:
       for i in range(len(old_ver_objects)):
           old_value = old_ver_objects[i]["value"]
           if new_ver_objects[i].get(tag,False):
