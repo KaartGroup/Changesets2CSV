@@ -3308,9 +3308,6 @@ def count_tag_change(changesets,info_json,osm_obj_type='*'):
         current_tag_index = 0
         #print(tags_to_check)
         #>> [{'tag': 'name', 'const': 'highway'}, {'tag': 'name', 'const': 'waterway'}]
-        #old_objects_by_changeset[<changeset_id>][tags_to_check[index]['tag']]
-        #old_objects_by_changeset[changesets[current_set_index]][tag].append(this_obj)
-        #obj_by_changeset anatomy: {<change_id>:{<tag_const>:[<list of values>],<tag_const:[<list of values>]}}
         objects_added = 0
 
         old_objects_by_changeset={}
@@ -3322,62 +3319,24 @@ def count_tag_change(changesets,info_json,osm_obj_type='*'):
             for key, value in element['tags'].items():
                 this_obj[key] = value
             old_version_objects.append(this_obj)
-            #these_tags = element['tags']
 
         #Sort list of objects by changeset and tag
-        #print('Objects to be sorted')
         old_obj_index = 0
         for set in objects_by_changeset:
             old_objects_by_changeset[set] = {}
-            #print(set)
-            #>>> outputs all changeset ids repeatedly?
             objects_by_tag = objects_by_changeset[set]
             for tag in objects_by_tag:
-
-                #print('For Tag: ',tag)
-
                 old_objects_by_changeset[set][tag] = []
-                #print(tag)
-                #>>> alternating 'name_highway'\n'name_waterway'\n
-                #old_objects_by_changeset[changesets[current_set_index]][tag]
                 #objects_by_tag[tag] gives us the list of objects that we need to check
                 #We can iterate through this list to get the objects
                 for this_obj in objects_by_tag[tag]:
                     #Iterate through tags in the query response json
-                    #print(old_obj_index)
                     if old_obj_index < object_limit_for_query or object_limit_for_query == 0:
                         obj_to_add = old_version_objects[old_obj_index]
                         old_obj_index += 1
-                        #print(obj_to_add)
                         old_objects_by_changeset[set][tag].append(obj_to_add)
 
-                        #print(obj_to_add)
 
-
-                    #print(this_obj)
-                    #Prints the dict containing the object id, the version, and all tags
-            #print()
-
-
-
-            '''
-            these_tags = element['tags']
-            #print("set is ", changesets[current_set_index])
-            #TODO: Grab all tags from old version objects
-            this_obj = {"id":element['id'],"version":element['version']}
-            for key, value in element['tags'].items():
-                this_obj[key] = value
-
-            old_objects_by_changeset[changesets[current_set_index]].append(this_obj)
-            objects_added += 1
-
-            #Ensure that we add objects to the right changeset
-            if objects_added == change_count_by_changeset[changesets[current_set_index]]:
-                objects_added = 0
-                if current_set_index + 1 <= len(changesets) - 1:
-                    current_set_index += 1
-                    old_objects_by_changeset[changesets[current_set_index]] = []
-            '''
 
         #4Testing: Print list of old-version objects
         if print_version_lists:
@@ -3397,38 +3356,24 @@ def count_tag_change(changesets,info_json,osm_obj_type='*'):
                 #tag + '_' + const_tag e.g. name_highway
                 add_key = this_tag +' added'
                 modify_key = this_tag + ' modified'
-                #print(modify_key)
                 delete_key = this_tag + ' deleted'
                 changes_by_changeset[this_changeset][this_tag] = {add_key:0,modify_key:0,delete_key:0}
 
 
 
-        '''
-        for tag in tags_to_check:
-            print(tag)
-            for set, changes in old_objects_by_changeset.items():
-                changes_by_changeset[set] = {'added':0,'modified':0,'deleted':0}
-        '''
-
         differences_counted = 0
         compare_index = 0
         tag_index = 0
-        #print("Full print of old")
         for this_changeset in old_objects_by_changeset:
-            #print('1')
             tag_index = 0
             for this_tag in old_objects_by_changeset[this_changeset]:
-                #print('2')
-                #tag + '_' + const_tag e.g. name_highway
                 compare_index = 0
                 for this_obj in old_objects_by_changeset[this_changeset][this_tag]:
-                    #print('3')
                     this_tag_to_check = tags_to_check[tag_index]['tag']
 
                     old_obj = old_objects_by_changeset[this_changeset][this_tag][compare_index]
                     new_obj = objects_by_changeset[this_changeset][this_tag][compare_index]
 
-                    #print(old_obj['id'],": ",new_obj['id'])
                     if str(old_obj['id']) != new_obj['id']:
                         print('ERROR: ID MISTMATCH')
 
@@ -3445,7 +3390,6 @@ def count_tag_change(changesets,info_json,osm_obj_type='*'):
                             if old_val != new_val:
                                 print(new_val,' added')
                                 changes_by_changeset[this_changeset][this_tag][this_tag +' added'] += 1
-                                #changes_by_changeset[set]['added'] += 1
                             else:
                                 print(old_val," didn't change")
                     else:
@@ -3453,14 +3397,12 @@ def count_tag_change(changesets,info_json,osm_obj_type='*'):
                             if old_val != new_val:
                                 print(old_val,' changed to ',new_val)
                                 changes_by_changeset[this_changeset][this_tag][this_tag +' modified'] += 1
-                                #changes_by_changeset[set]['modified'] += 1
                             else:
                                 print(old_val," didn't change")
                         else:
                             if old_val != new_val:
                                 print(old_val,' deleted')
                                 changes_by_changeset[this_changeset][this_tag][this_tag +' deleted'] += 1
-                                #changes_by_changeset[set]['deleted'] += 1
                             else:
                                 print(old_val," didn't change")
 
@@ -3471,49 +3413,6 @@ def count_tag_change(changesets,info_json,osm_obj_type='*'):
 
                 tag_index += 1
 
-
-        '''
-        for set,changes in old_objects_by_changeset.items():
-            this_old_set = old_objects_by_changeset[set]
-            this_new_set = objects_by_changeset[set]
-
-            for i in range(len(this_old_set)):
-                for this_tag in tags:
-                    #TODO: iterate through tags to check
-                    if this_old_set[i].get(this_tag,False):
-                        old_value = this_old_set[i][this_tag]
-                    else:
-                        old_value = None
-
-                    if this_new_set[i].get(this_tag,False):
-                        new_value = this_new_set[i][this_tag]
-                    else:
-                        new_value = None
-
-
-                    #print(old_value," became ",new_value)
-
-                    if old_value == None:
-                        if new_value != None:
-                            if old_value != new_value:
-                                print('add')
-                                changes_by_changeset[set]['added'] += 1
-                            else:
-                                print(old_value," didn't change")
-                    else:
-                        if new_value != None:
-                            if old_value != new_value:
-                                print('change')
-                                changes_by_changeset[set]['modified'] += 1
-                            else:
-                                print(old_value," didn't change")
-                        else:
-                            if old_value != new_value:
-                                print('delete')
-                                changes_by_changeset[set]['deleted'] += 1
-                            else:
-                                print(old_value," didn't change")
-            '''
         return changes_by_changeset
     else:
         return {'added':0,'modified':0,'deleted':0}
