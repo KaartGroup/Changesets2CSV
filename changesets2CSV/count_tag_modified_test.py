@@ -19,28 +19,33 @@ import doctest
 
 
 USER_AGENT = "trackDownload/0.1 (lucas.bingham@kaartgroup.com)"
-TEST_JSON_DICT = {'tags':[{'tag':'name','const':'highway'}],'users':[{'user_id':'9320902','name':'Traaker_L'}]}
+TEST_JSON_DICT = {'tags':[{'tag':'name','const':'highway'},{'tag':'name','const':'waterway'}],'users':[{'user_id':'9320902','name':'Traaker_L'}]}
 
 def count_tag_change(changesets,info_json,osm_obj_type='*'):
-    print(info_json)
+    #print(info_json)
+    tags_to_check = info_json['tags']
+    #for tag in tags_to_check:
+        #print(tag)
+
     #def count_tag_change(changesets,tags, osm_obj_type="*",const_tag="none"):
     #Testing variables
-    print_version_lists = True
-    object_limit_for_query=0
-    print_query = False
-    dont_run_query = False
+    print_version_lists = False
+    object_limit_for_query=15
+    print_query = True
+    dont_run_query = True
+    use_hardcoded_query_result = False
     print_query_response = False
     dont_process_query = False
-    #TODO: sort data of tag changes by changeset for column data in csv
-    #changesets = {<some_id>:[<objects>]}
-    #changesets = {<some_id>:{<tag_to_check>:[<objects>]}}
+    #TODO: sort data of tag changes by changeset, then by tag for column data in csv
+    #changesets = {<changeset_id>:{<tag_to_check>:[<objects>]}}
     objects_by_changeset = {}
     #new_ver_objects = []
 
     #Get all objects touched in each changeset
+    #We go by changeset, then by tag
     for changeset in changesets:
         #New changeset in list
-        objects_by_changeset[changeset] = [] #?
+        objects_by_changeset[changeset] = {} #?
         #Request XML for each changeset
         api_url = "https://www.openstreetmap.org/api/0.6/changeset/{changeset}/download".format(changeset=changeset)
         dev_api_url = "https://master.apis.dev.openstreetmap.org/api/0.6/changeset/{changeset}/download".format(changeset=changeset)
@@ -50,44 +55,62 @@ def count_tag_change(changesets,info_json,osm_obj_type='*'):
         root = ET.fromstring(result)
 
         #If we are looking for a constant tag
-        if const_tag != "none":
-            #Retrieve all objects that have the tags we're looking for
-            objs_modified = root.findall("./modify/{osm_obj_type}/tag[@k='{const_tag}']..".format(const_tag=const_tag,osm_obj_type=osm_obj_type))
-            objs_created = root.findall("./create/{osm_obj_type}/tag[@k='{const_tag}']..".format(const_tag=const_tag,osm_obj_type=osm_obj_type))
-            objs_deleted = root.findall("./delete/{osm_obj_type}/tag[@k='{const_tag}']..".format(const_tag=const_tag,osm_obj_type=osm_obj_type))
+        for this_tag in tags_to_check:
+            check_tag = this_tag['tag']
+            #print('check_tag: ',check_tag)
 
-            #Store each modified object's data in our list, new_ver_objects, as dictionaries
-            for obj in objs_modified:
-                this_obj = {"id":obj.attrib['id'],"version":int(obj.attrib['version'])}
-                these_tags = obj.findall("tag")
-                for this_tag in these_tags:
-                    this_obj[this_tag.attrib['k']] = this_tag.attrib['v']
+            const_tag = this_tag['const']
+            #print('const_tag: ', const_tag)
+            objects_by_changeset[changeset][check_tag+'_'+const_tag] = []
 
-                objects_by_changeset[changeset].append(this_obj)
+            if const_tag != "none":
+                #print('checking for const ',const_tag)
+                #Retrieve all objects that have the tags we're looking for
+                objs_modified = root.findall("./modify/{osm_obj_type}/tag[@k='{const_tag}']..".format(const_tag=const_tag,osm_obj_type=osm_obj_type))
+                objs_created = root.findall("./create/{osm_obj_type}/tag[@k='{const_tag}']..".format(const_tag=const_tag,osm_obj_type=osm_obj_type))
+                objs_deleted = root.findall("./delete/{osm_obj_type}/tag[@k='{const_tag}']..".format(const_tag=const_tag,osm_obj_type=osm_obj_type))
+
+                #Store each modified object's data in our list, new_ver_objects, as dictionaries
+                for obj in objs_modified:
+                    this_obj = {"id":obj.attrib['id'],"version":int(obj.attrib['version'])}
+                    tag_elements = obj.findall("tag")
+                    for tag_element in tag_elements:
+                        this_obj[tag_element.attrib['k']] = tag_element.attrib['v']
+                    #print(check_tag)
+                    objects_by_changeset[changeset][check_tag+'_'+const_tag].append(this_obj)
 
         #If we only care about the tag being changed
-        else:
-            #Retrieve all objects that have the tags we're looking for
-            objs_modified = root.findall("./modify/{osm_obj_type}".format(const_tag=const_tag,osm_obj_type=osm_obj_type))
-            objs_created = root.findall("./create/{osm_obj_type}".format(const_tag=const_tag,osm_obj_type=osm_obj_type))
-            objs_deleted = root.findall("./delete/{osm_obj_type}".format(const_tag=const_tag,osm_obj_type=osm_obj_type))
+            else:
+                #Retrieve all objects that have the tags we're looking for
+                objs_modified = root.findall("./modify/{osm_obj_type}".format(const_tag=const_tag,osm_obj_type=osm_obj_type))
+                objs_created = root.findall("./create/{osm_obj_type}".format(const_tag=const_tag,osm_obj_type=osm_obj_type))
+                objs_deleted = root.findall("./delete/{osm_obj_type}".format(const_tag=const_tag,osm_obj_type=osm_obj_type))
 
-            #Store each modified object's data in our list, new_ver_objects, as dictionaries
-            for obj in objs_modified:
-                this_obj = {"id":obj.attrib['id'],"version":int(obj.attrib['version'])}
-                these_tags = obj.findall("tag")
-                for this_tag in these_tags:
-                    this_obj[this_tag.attrib['k']] = this_tag.attrib['v']
+                #Store each modified object's data in our list, new_ver_objects, as dictionaries
+                for obj in objs_modified:
+                    this_obj = {"id":obj.attrib['id'],"version":int(obj.attrib['version'])}
+                    these_tags = obj.findall("tag")
+                    for tag_element in tag_elements:
+                        this_obj[tag_element.attrib['k']] = tag_element.attrib['v']
 
-                objects_by_changeset[changeset].append(this_obj)
+
+                    objects_by_changeset[changeset][check_tag+'_'+const_tag].append(this_obj)
 
 
     change_count_by_changeset = {}
     #print(objects_by_changeset)
 
     #Count number of objects per changeset
-    for this_k, this_v in objects_by_changeset.items():
-      change_count_by_changeset[this_k] = len(this_v)
+    for set in objects_by_changeset:
+        change_count_by_changeset[set] = {}
+        for tag in objects_by_changeset[set]:
+            change_count_by_changeset[set][tag] = len(objects_by_changeset[set][tag])
+
+    for set in change_count_by_changeset:
+        print(change_count_by_changeset[set])
+
+
+
 
 
 
@@ -96,27 +119,31 @@ def count_tag_change(changesets,info_json,osm_obj_type='*'):
     #4Testing: print objects and data in new_ver_objects list
     if print_version_lists:
         print("New_Ver: ")
-        for obj in objects_by_changeset: print(objects_by_changeset[obj])
+        for changeset in objects_by_changeset:
+            print(objects_by_changeset[changeset])
+
         print()
 
     #Build query to get previous versions of all objects in new_ver_objects
    #Start of Overpass Query
+   #We will go by changeset, then by tag
     query = "[out:json][timeout:25];"
     query_count = 0
     for this_set in objects_by_changeset:
-        #Build each query part for each object
-        if (query_count < object_limit_for_query or object_limit_for_query == 0):
-            for obj in objects_by_changeset[this_set]:
+        for this_tag in objects_by_changeset[this_set]:
+            #Build each query part for each object
+            if (query_count < object_limit_for_query or object_limit_for_query == 0):
+                for obj in objects_by_changeset[this_set]:
 
-                #Can this ever happen?
-                if obj["version"] > 1 and (query_count < object_limit_for_query or object_limit_for_query == 0):
-                    if object_limit_for_query != 0:
-                        print("Object ",query_count+1," of ",object_limit_for_query)
-                    #Thank you Taylor
-                    query_part = "timeline({osm_obj_type}, {osm_id}, {prev_version}); for (t['created']) {{ retro(_.val) {{ {osm_obj_type}(id:{osm_id}); out meta;}} }}"\
-                    .format(osm_obj_type = osm_obj_type, osm_id = obj["id"],prev_version = int(obj["version"])-1)
-                    query += query_part
-                    query_count += 1
+                    #Can this ever happen?
+                    if obj["version"] > 1 and (query_count < object_limit_for_query or object_limit_for_query == 0):
+                        if object_limit_for_query != 0:
+                            print("Object ",query_count+1," of ",object_limit_for_query)
+                        #Thank you Taylor
+                        query_part = "timeline({osm_obj_type}, {osm_id}, {prev_version}); for (t['created']) {{ retro(_.val) {{ {osm_obj_type}(id:{osm_id}); out meta;}} }}"\
+                        .format(osm_obj_type = osm_obj_type, osm_id = obj["id"],prev_version = int(obj["version"])-1)
+                        query += query_part
+                        query_count += 1
 
     #4Testing: print out the query and/or response
     if print_query: print(query)
