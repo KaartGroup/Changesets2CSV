@@ -22,7 +22,7 @@ USER_AGENT = "trackDownload/0.1 (lucas.bingham@kaartgroup.com)"
 TEST_JSON_DICT = {'tags':[{'tag':'name','const':'highway'}],'users':[{'user_id':'9320902','name':'Traaker_L'}]}
 
 
-def count_tag_change(changesets,tag, osm_obj_type="*",const_tag="none"):
+def count_tag_change(changesets,tags, osm_obj_type="*",const_tag="none"):
   #Testing variables
   print_version_lists = True
   object_limit_for_query=0
@@ -57,16 +57,11 @@ def count_tag_change(changesets,tag, osm_obj_type="*",const_tag="none"):
           #Store each modified object's data in our list, new_ver_objects, as dictionaries
           for obj in objs_modified:
               this_obj = {"id":obj.attrib['id'],"version":int(obj.attrib['version'])}
-              tags = obj.findall("tag")
-              for thisTag in tags:
-                  this_obj[thisTag.attrib['k']] = thisTag.attrib['v']
+              these_tags = obj.findall("tag")
+              for this_tag in these_tags:
+                  this_obj[this_tag.attrib['k']] = this_tag.attrib['v']
 
               objects_by_changeset[changeset].append(this_obj)
-              #new_ver_objects.append(this_obj)
-
-          #print(changeset)
-          #print(objects_by_changeset[changeset])
-
 
       #If we only care about the tag being changed
       else:
@@ -78,12 +73,11 @@ def count_tag_change(changesets,tag, osm_obj_type="*",const_tag="none"):
           #Store each modified object's data in our list, new_ver_objects, as dictionaries
           for obj in objs_modified:
               this_obj = {"id":obj.attrib['id'],"version":int(obj.attrib['version'])}
-              tags = obj.findall("tag")
-              for tag in tags:
-                  this_obj[tag.attrib['k']] = tag.attrib['v']
+              these_tags = obj.findall("tag")
+              for this_tag in these_tags:
+                  this_obj[this_tag.attrib['k']] = this_tag.attrib['v']
 
               objects_by_changeset[changeset].append(this_obj)
-              #new_ver_objects.append(this_obj)
 
 
   change_count_by_changeset = {}
@@ -109,7 +103,6 @@ def count_tag_change(changesets,tag, osm_obj_type="*",const_tag="none"):
   query_count = 0
   for this_set in objects_by_changeset:
       #Build each query part for each object
-      #print(objects_by_changeset[changes])
       if (query_count < object_limit_for_query or object_limit_for_query == 0):
           for obj in objects_by_changeset[this_set]:
 
@@ -159,17 +152,7 @@ def count_tag_change(changesets,tag, osm_obj_type="*",const_tag="none"):
           old_objects_by_changeset[changesets[current_set_index]].append(this_obj)
           objects_added += 1
 
-          #If tag is present in this version
-          '''
-          if these_tags.get(tag,None) != None:
-              old_objects_by_changeset[changesets[current_set_index]].append({"id":element['id'],'value':element['tags'][tag],"version":element['version']})
-              objects_added += 1
-          #If tag is not present in this version
-          else:
-              old_objects_by_changeset[changesets[current_set_index]].append({"id":element['id'],'value':None,"version":element['version']})
-              objects_added += 1
-          '''
-
+          #Ensure that we add objects to the right changeset
           if objects_added == change_count_by_changeset[changesets[current_set_index]]:
               objects_added = 0
               if current_set_index + 1 <= len(changesets) - 1:
@@ -184,48 +167,50 @@ def count_tag_change(changesets,tag, osm_obj_type="*",const_tag="none"):
 
       #See what values changed
       changes_by_changeset = {}
+      #Initialize change counts for all sets
       for set, changes in old_objects_by_changeset.items():
           changes_by_changeset[set] = {'added':0,'modified':0,'deleted':0}
 
       for set,changes in old_objects_by_changeset.items():
           this_old_set = old_objects_by_changeset[set]
           this_new_set = objects_by_changeset[set]
+
           for i in range(len(this_old_set)):
-              print(i)
-              if this_old_set[i].get(tag,False):
-                  old_value = this_old_set[i][tag]
-              else:
-                  old_value = None
-
-
-              if this_new_set[i].get(tag,False):
-                  new_value = this_new_set[i][tag]
-              else:
-                  new_value = None
-
-
-              print(old_value," became ",new_value)
-
-              if old_value == None:
-                  if new_value != None:
-                      if old_value != new_value:
-                          print('add')
-                          changes_by_changeset[set]['added'] += 1
-                      else:
-                          print(old_value," didn't change")
-              else:
-                  if new_value != None:
-                      if old_value != new_value:
-                          print('change')
-                          changes_by_changeset[set]['modified'] += 1
-                      else:
-                          print(old_value," didn't change")
+              for this_tag in tags:
+                  #TODO: iterate through tags to check
+                  if this_old_set[i].get(this_tag,False):
+                      old_value = this_old_set[i][this_tag]
                   else:
-                      if old_value != new_value:
-                          print('delete')
-                          changes_by_changeset[set]['deleted'] += 1
+                      old_value = None
+
+                  if this_new_set[i].get(this_tag,False):
+                      new_value = this_new_set[i][this_tag]
+                  else:
+                      new_value = None
+
+
+                  #print(old_value," became ",new_value)
+
+                  if old_value == None:
+                      if new_value != None:
+                          if old_value != new_value:
+                              print('add')
+                              changes_by_changeset[set]['added'] += 1
+                          else:
+                              print(old_value," didn't change")
+                  else:
+                      if new_value != None:
+                          if old_value != new_value:
+                              print('change')
+                              changes_by_changeset[set]['modified'] += 1
+                          else:
+                              print(old_value," didn't change")
                       else:
-                          print(old_value," didn't change")
+                          if old_value != new_value:
+                              print('delete')
+                              changes_by_changeset[set]['deleted'] += 1
+                          else:
+                              print(old_value," didn't change")
 
       return changes_by_changeset
   else:
@@ -293,4 +278,5 @@ def overpass_query(query):
     else:
         raise ValueError("Unexpected content type ({}) from the query: {}".format(content_type, query))
 
-print(count_tag_change([72917146,72916726,72916312,72915002,72913700,72912034,72911454,72909249,72908229,72905720],"name","way","highway"))
+
+print(count_tag_change([72917146,72916726,72916312,72915002,72913700,72912034,72911454,72909249,72908229,72905720],["name"],"way","highway"))
