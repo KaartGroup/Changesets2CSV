@@ -26,8 +26,12 @@ from xlsxwriter.workbook import Workbook
 import json
 
 TEST_OVERPASS_USER_AGENT = "trackDownload/0.1 (lucas.bingham@kaartgroup.com)"
-TEST_JSON_DICT = {'tags':[{'tag':'name','const':'highway'},{'tag':'surface','const':'highway'}],'users':[{'user_id':'9320902','name':'Traaker_L'},{'user_id':'8600365','name':'spuddy93'}]}
-#,{'user_id':'8600365','name':'spuddy93'}
+with open('test.json') as f:
+    TEST_JSON_DICT = json.load(f)
+    print(TEST_JSON_DICT)
+
+#{'tags':[{'tag':'name','const':'highway'},{'tag':'surface','const':'highway'}],'users':[{'user_id':'9320902','name':'Traaker_L'},{'user_id':'8600365','name':'spuddy93'}]}
+
 
 def valid_date(s):
     try:
