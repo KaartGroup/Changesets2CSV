@@ -3177,12 +3177,8 @@ HARDCODED_QUERY_RESULT = {
 
 
 def count_tag_change(changesets,info_json,osm_obj_type='*'):
-    #print(info_json)
     tags_to_check = info_json['tags']
-    #for tag in tags_to_check:
-        #print(tag)
 
-    #def count_tag_change(changesets,tags, osm_obj_type="*",const_tag="none"):
     #Testing variables
     print_version_lists = False
     object_limit_for_query=0
@@ -3191,10 +3187,8 @@ def count_tag_change(changesets,info_json,osm_obj_type='*'):
     use_hardcoded_query_result = False
     print_query_response = False
     dont_process_query = False
-    #TODO: sort data of tag changes by changeset, then by tag for column data in csv
     #changesets = {<changeset_id>:{<tag_to_check>:[<objects>]}}
     objects_by_changeset = {}
-    #new_ver_objects = []
 
     #Get all objects touched in each changeset
     #We go by changeset, then by tag
@@ -3204,7 +3198,7 @@ def count_tag_change(changesets,info_json,osm_obj_type='*'):
         #Request XML for each changeset
         api_url = "https://www.openstreetmap.org/api/0.6/changeset/{changeset}/download".format(changeset=changeset)
         dev_api_url = "https://master.apis.dev.openstreetmap.org/api/0.6/changeset/{changeset}/download".format(changeset=changeset)
-        #api_url = api_url
+
         session = CacheControl(requests.session())
         result = session.get(api_url).text
         root = ET.fromstring(result)
@@ -3212,14 +3206,11 @@ def count_tag_change(changesets,info_json,osm_obj_type='*'):
         #If we are looking for a constant tag
         for this_tag in tags_to_check:
             check_tag = this_tag['tag']
-            #print('check_tag: ',check_tag)
 
             const_tag = this_tag['const']
-            #print('const_tag: ', const_tag)
             objects_by_changeset[changeset][check_tag+'_'+const_tag] = []
 
             if const_tag != "none":
-                #print('checking for const ',const_tag)
                 #Retrieve all objects that have the tags we're looking for
                 objs_modified = root.findall("./modify/{osm_obj_type}/tag[@k='{const_tag}']..".format(const_tag=const_tag,osm_obj_type=osm_obj_type))
                 objs_created = root.findall("./create/{osm_obj_type}/tag[@k='{const_tag}']..".format(const_tag=const_tag,osm_obj_type=osm_obj_type))
@@ -3231,7 +3222,6 @@ def count_tag_change(changesets,info_json,osm_obj_type='*'):
                     tag_elements = obj.findall("tag")
                     for tag_element in tag_elements:
                         this_obj[tag_element.attrib['k']] = tag_element.attrib['v']
-                    #print(check_tag)
                     objects_by_changeset[changeset][check_tag+'_'+const_tag].append(this_obj)
 
         #If we only care about the tag being changed
@@ -3247,32 +3237,16 @@ def count_tag_change(changesets,info_json,osm_obj_type='*'):
                     these_tags = obj.findall("tag")
                     for tag_element in tag_elements:
                         this_obj[tag_element.attrib['k']] = tag_element.attrib['v']
-
-
                     objects_by_changeset[changeset][check_tag+'_'+const_tag].append(this_obj)
 
 
     change_count_by_changeset = {}
-    #print(objects_by_changeset)
 
     #Count number of objects per changeset
     for set in objects_by_changeset:
         change_count_by_changeset[set] = {}
         for tag in objects_by_changeset[set]:
             change_count_by_changeset[set][tag] = len(objects_by_changeset[set][tag])
-
-    #print('counts: ')
-    #print(change_count_by_changeset)
-
-    #for set in change_count_by_changeset:
-        #print(change_count_by_changeset[set])
-
-
-
-
-
-
-
 
     #4Testing: print objects and data in new_ver_objects list
     if print_version_lists:
@@ -3281,9 +3255,9 @@ def count_tag_change(changesets,info_json,osm_obj_type='*'):
         print()
 
     #Build query to get previous versions of all objects in new_ver_objects
-   #Start of Overpass Query
-   #We will go by changeset, then by tag
-   #[<changeset>][<tag>]
+    #Start of Overpass Query
+    #We will go by changeset, then by tag
+    #[<changeset>][<tag>]
     query = "[out:json][timeout:25];"
     query_count = 0
     for this_set in objects_by_changeset:
@@ -3297,9 +3271,10 @@ def count_tag_change(changesets,info_json,osm_obj_type='*'):
                     if obj["version"] > 1 and (query_count < object_limit_for_query or object_limit_for_query == 0):
                         if object_limit_for_query != 0:
                             print("Object ",query_count+1," of ",object_limit_for_query)
-                        #Thank you Taylor
+
                         query_part = "timeline({osm_obj_type}, {osm_id}, {prev_version}); for (t['created']) {{ retro(_.val) {{ {osm_obj_type}(id:{osm_id}); out meta;}} }}"\
                         .format(osm_obj_type = osm_obj_type, osm_id = obj["id"],prev_version = int(obj["version"])-1)
+
                         query += query_part
                         query_count += 1
 
@@ -3325,14 +3300,13 @@ def count_tag_change(changesets,info_json,osm_obj_type='*'):
         if use_hardcoded_query_result:
             query_json = HARDCODED_QUERY_RESULT
         #Dictionaries of id, value, version
-        old_ver_objects = []
         old_objects_by_changeset = {}
         #old_objects_by_changeset{<changeset_id>:{<tag_to_check>:[<objects>]}}
         #We go by changeset, then tag
         #We will index tags inside of indexing changesets
         current_set_index = 0
         current_tag_index = 0
-        #print('we gotta figure out which to use: ',tags_to_check)
+        #print(tags_to_check)
         #>> [{'tag': 'name', 'const': 'highway'}, {'tag': 'name', 'const': 'waterway'}]
         #old_objects_by_changeset[<changeset_id>][tags_to_check[index]['tag']]
         #old_objects_by_changeset[changesets[current_set_index]][tag].append(this_obj)
