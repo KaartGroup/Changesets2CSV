@@ -3187,8 +3187,8 @@ def count_tag_change(changesets,info_json,osm_obj_type='*'):
     print_version_lists = False
     object_limit_for_query=0
     print_query = False
-    dont_run_query = True
-    use_hardcoded_query_result = True
+    dont_run_query = False
+    use_hardcoded_query_result = False
     print_query_response = False
     dont_process_query = False
     #TODO: sort data of tag changes by changeset, then by tag for column data in csv
@@ -3423,7 +3423,7 @@ def count_tag_change(changesets,info_json,osm_obj_type='*'):
                 #tag + '_' + const_tag e.g. name_highway
                 add_key = this_tag +' added'
                 modify_key = this_tag + ' modified'
-                print(modify_key)
+                #print(modify_key)
                 delete_key = this_tag + ' deleted'
                 changes_by_changeset[this_changeset][this_tag] = {add_key:0,modify_key:0,delete_key:0}
 
@@ -3497,8 +3497,6 @@ def count_tag_change(changesets,info_json,osm_obj_type='*'):
 
                 tag_index += 1
 
-        print(differences_counted, "WOO")
-        print(changes_by_changeset)
 
         '''
         for set,changes in old_objects_by_changeset.items():
@@ -3609,6 +3607,6 @@ def overpass_query(query):
         raise ValueError("Unexpected content type ({}) from the query: {}".format(content_type, query))
 
 
-#print(\
+print(\
 count_tag_change([72917146,72916726,72916312,72915002,72913700,72912034,72911454,72909249,72908229,72905720],TEST_JSON_DICT,"way")\
-#)
+)
