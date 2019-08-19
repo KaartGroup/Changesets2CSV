@@ -25,13 +25,7 @@ import ssl
 from xlsxwriter.workbook import Workbook
 import json
 
-TEST_OVERPASS_USER_AGENT = "trackDownload/0.1 (lucas.bingham@kaartgroup.com)"
-'''
-with open('test.json') as f:
-    TEST_JSON_DICT = json.load(f)
-    print(TEST_JSON_DICT)
-'''
-
+OVERPASS_USER_AGENT = "Python/Changesets2csv/0.4.1 (https://github.com/KaartGroup/Changesets2CSV)"
 
 
 #{'tags':[{'tag':'name','const':'highway'},{'tag':'surface','const':'highway'}],'users':[{'user_id':'9320902','name':'Traaker_L'},{'user_id':'8600365','name':'spuddy93'}]}
@@ -163,7 +157,7 @@ def count_new_modified_deleted(changeset):
 def overpass_status(api_status_url = "https://overpass-api.de/api/status"):
     """Get the overpass status -- this returns an int with the time to wait"""
     session = requests.session()
-    session.headers.update({'User-Agent': TEST_OVERPASS_USER_AGENT})
+    session.headers.update({'User-Agent': OVERPASS_USER_AGENT})
     cached_session = CacheControl(session)
     response = cached_session.get(api_status_url)
     if (response.status_code != requests.codes.ok):
@@ -191,7 +185,7 @@ def overpass_query(query):
     """Query the overpass servers. This may block for extended periods of time, depending upon the query"""
 
     session = requests.session()
-    session.headers.update({'User-Agent': TEST_OVERPASS_USER_AGENT})
+    session.headers.update({'User-Agent': OVERPASS_USER_AGENT})
     cached_session = CacheControl(session)
     response = cached_session.post("http://overpass-api.de/api/interpreter", data={'data': query})
     wait_time = overpass_status()
