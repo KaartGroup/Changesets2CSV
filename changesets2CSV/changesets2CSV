@@ -59,8 +59,9 @@ def create_summary(args):
     delete_total = 0
     summary = []
 
-    tag_counts = []
+    tag_counts = {}
     #each entry willl be a dictionary with <tag_combo>_added/modified/deleted:0
+    #e.g. {'name_highway added':0,'name_highway modified':0, 'name_highway deleted':0}
 
     with open(args.input_file, mode='r') as f:
         loaded_dict = json.load(f)
@@ -68,10 +69,12 @@ def create_summary(args):
         json_dict = loaded_dict
         users = json_dict['users']
 
-        #print(users)
-        #for user in users:
-            #print(user['name'])
-            #print(user['user_id'])
+        #Initialize tag change fields
+        for tag in json_dict['tags']:
+            prefix = tag['tag']+'_'+tag['const']
+            for suffix in [' added',' modified',' deleted']:
+                tag_counts[prefix + suffix] = 0
+
 
         for user in users:
             print("Processing changesets for {} ...".format(str(user['name'])), end="\r")
@@ -93,16 +96,18 @@ def create_summary(args):
             mod_total += counts['Modifications']
             delete_total += counts['Deletions']
             #TODO: Add tag-specific counts here
+            for tag_change in tag_counts:
+                tag_counts[tag_change] += counts[tag_change]
 
             time.sleep(10)
             print("Processing changesets for {} ... Done\n".format(str(user['name'])))
 
 
+
     try:
         epc_total = round((edit_total / changeset_total), 2)
 
-
-        summary.append({
+        summary_dict = {
             'Editor': 'TOTAL',
             'Changesets': changeset_total,
             'Edits': edit_total,
@@ -111,7 +116,14 @@ def create_summary(args):
             'Additions': add_total,
             'Modifications': mod_total,
             'Deletions': delete_total
-        })
+        }
+
+
+
+        for tag_change in tag_counts:
+            summary_dict[tag_change] = tag_counts[tag_change]
+
+        summary.append(summary_dict)
         summary_csv(args, os.path.join(args.output, "summary.csv"), summary)
     except ZeroDivisionError:
        print("Warning: There were no changesets within those parameters")
@@ -120,6 +132,16 @@ def create_summary(args):
 def summary_csv(args, output_file, summary):
     with open(output_file, 'w') as f:
         fieldnames = ['Editor', 'Changesets', 'Edits', 'Discussions', 'Edits/Changeset', 'Additions', 'Modifications', 'Deletions']
+
+        for tag in json_dict['tags']:
+            prefix = tag['tag']+'_'+tag['const']
+            for suffix in [' added',' modified',' deleted']:
+                fieldnames.append(prefix + suffix)
+        #fieldnames = ['Editor']
+        #for key, value in summary.items():
+            #print(key)
+            #fieldnames.append(key)
+        #print(fieldnames)
         csv_writer = csv.DictWriter(f, fieldnames=fieldnames)
         csv_writer.writeheader()
 
@@ -228,6 +250,7 @@ def count_tag_change(changesets,info_json,osm_obj_type='*'):
     dont_process_query = False
     #changesets = {<changeset_id>:{<tag_to_check>:[<objects>]}}
     objects_by_changeset = {}
+    note_every_change = False
 
     #Get all objects touched in each changeset
     #We go by changeset, then by tag
@@ -424,26 +447,27 @@ def count_tag_change(changesets,info_json,osm_obj_type='*'):
                     if new_obj.get(this_tag_to_check,False):
                         new_val = new_obj[this_tag_to_check]
 
+                    do_print = note_every_change
                     if old_val == None:
                         if new_val != None:
                             if old_val != new_val:
-                                print(new_val,' added')
+                                if do_print: print(new_val,' added')
                                 changes_by_changeset[this_changeset][this_tag][this_tag +' added'] += 1
                             else:
-                                print(old_val," didn't change")
+                                if do_print: print(old_val," didn't change")
                     else:
                         if new_val != None:
                             if old_val != new_val:
-                                print(old_val,' changed to ',new_val)
+                                if do_print: print(old_val,' changed to ',new_val)
                                 changes_by_changeset[this_changeset][this_tag][this_tag +' modified'] += 1
                             else:
-                                print(old_val," didn't change")
+                                if do_print: print(old_val," didn't change")
                         else:
                             if old_val != new_val:
-                                print(old_val,' deleted')
+                                if do_print: print(old_val,' deleted')
                                 changes_by_changeset[this_changeset][this_tag][this_tag +' deleted'] += 1
                             else:
-                                print(old_val," didn't change")
+                                if do_print: print(old_val," didn't change")
 
 
 
@@ -547,6 +571,14 @@ def changeset_csv(output_file, changesets, name=None, summary=False):
 
             tag_changes = count_tag_change(changeset_ids,json_dict,"way")
 
+            #Initialize list of tag changes we found
+            tag_change_totals = {}
+            for tag in json_dict['tags']:
+                prefix = tag['tag']+'_'+tag['const']
+                for suffix in [' added',' modified',' deleted']:
+                    tag_change_totals[prefix + suffix] = 0
+
+
             for item in changesets:
                 changeset = {'Username': item.get('user'),
                              'ID': item.get('id'),
@@ -568,17 +600,11 @@ def changeset_csv(output_file, changesets, name=None, summary=False):
                     changeset[key] = changesetInformation[key]
 
                 #Tag-specific adds, modifies, deletes
-                #print(item.get('id'))
                 these_tag_changes = tag_changes[item.get('id')]
                 for this_tag in these_tag_changes:
                     for change_type, change_count in these_tag_changes[this_tag].items():
                         changeset[change_type] = change_count
-                '''
-                for key in these_tag_changes:
-                    key_string = field_prefixes[0] + ' ' + key
-                    #print(key_string)
-                    changeset[key_string] = these_tag_changes[key]
-                '''
+                        tag_change_totals[change_type] += change_count
 
 
 
@@ -605,6 +631,9 @@ def changeset_csv(output_file, changesets, name=None, summary=False):
                 'Discussions': discussion_count,
                 'Edits/Changeset': round((edit_count/changeset_count), 2)}
 
+        for k,v in tag_change_totals.items():
+            summary_dict[k] = v
+
         return summary_dict
 
     return True
@@ -614,6 +643,7 @@ def get_args():
     parser = argparse.ArgumentParser(usage='''changesets2CSV [-h] [-b min_lon min_lat max_lon max_lat] [-v] <command>
     ''', description="Commands for creating changeset CSV's")
     parser.add_argument('-t', '--test', help="Run tests to make certain that everything works", action='store_true')
+    #parser.add_argument('-v','--version',help="Print version number",action = 'store_true')
     parser.add_argument('--bbox', nargs=4,
                         help="The bbox to query changesets. Values separated by spaces.",
                         metavar=('min_lon', 'min_lat', 'max_lon', 'max_lat'))
@@ -630,14 +660,12 @@ def get_args():
     specific.set_defaults(func=create_specific, which="specific")
 
     summary = subparsers.add_parser("summary", help="Create a summary of changesets", description="Create a summary for a specified time range.")
-    #summary.add_argument('users', help="Path of the .config file of users.")
     summary.add_argument('input_file',help="Path of the .json file of users and tags")
     summary.add_argument('-s', '--start_time', nargs=1, type=valid_date, help="The start time of the window to query (YYYY-MM-DD).")
     summary.add_argument('-e', '--end_time', nargs=1, type=valid_date, help="The end time of the window to query (YYYY-MM-DD).")
     summary.set_defaults(func=create_summary, which="summary")
 
     weekly = subparsers.add_parser("weekly", help="Create a weekly summary of changesets")
-    #weekly.add_argument('users', help="Path of the .config file of users.")
     weekly.add_argument('input_file',help="Path of the .json file of users and tags")
     weekly.set_defaults(func=create_weekly, which="weekly")
 
