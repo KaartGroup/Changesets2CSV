@@ -239,7 +239,6 @@ def count_tag_change(changesets,info_json,osm_obj_type='*'):
     print_query = False
     dont_run_query = False
     use_hardcoded_query_result = False
-    print_query_response = False
     dont_process_query = False
 
 
@@ -340,16 +339,14 @@ def count_tag_change(changesets,info_json,osm_obj_type='*'):
         print('Query: ')
         print(query)
 
+    print('Query submitted')
     if dont_run_query == False:
         #Submit the query
         query_json = overpass_query(query)
+    print('Query result received')
 
-    if print_query_response:
-        if dont_run_query:
-            print("Cannot print query response if it was not run")
-        else:
-            print(query_json)
 
+    TEST_PRINT_LIMIT = 50
 
     if (dont_process_query == False and dont_run_query == False)\
     or use_hardcoded_query_result:
@@ -370,11 +367,20 @@ def count_tag_change(changesets,info_json,osm_obj_type='*'):
 
         #Iterate through query result elements
         old_version_objects = []
+        TEST_PRINT_COUNT = 0
         for element in query_json["elements"]:
-            this_obj = this_obj = {"id":element['id'],"version":element['version']}
-            for key, value in element['tags'].items():
-                this_obj[key] = value
+            this_obj = {"id":element['id'],"version":element['version']}
+            print('Element is: ')
+            print(element)
+            if 'tags' in element:
+                for key, value in element['tags'].items():
+                    this_obj[key] = value
+                    
             old_version_objects.append(this_obj)
+
+            if TEST_PRINT_COUNT < TEST_PRINT_LIMIT:
+                print(this_obj)
+                TEST_PRINT_COUNT += 1
 
         #Sort list of objects by changeset and tag
         old_obj_index = 0
