@@ -25,10 +25,8 @@ import ssl
 from xlsxwriter.workbook import Workbook
 import json
 
-OVERPASS_USER_AGENT = "Python/Changesets2csv/0.4.1 (https://github.com/KaartGroup/Changesets2CSV)"
 
 
-#{'tags':[{'tag':'name','const':'highway'},{'tag':'surface','const':'highway'}],'users':[{'user_id':'9320902','name':'Traaker_L'},{'user_id':'8600365','name':'spuddy93'}]}
 
 
 def valid_date(s):
@@ -95,7 +93,7 @@ def create_summary(args):
             add_total += counts['Additions']
             mod_total += counts['Modifications']
             delete_total += counts['Deletions']
-            #TODO: Add tag-specific counts here
+
             for tag_change in tag_counts:
                 tag_counts[tag_change] += counts[tag_change]
 
@@ -118,8 +116,6 @@ def create_summary(args):
             'Deletions': delete_total
         }
 
-
-
         for tag_change in tag_counts:
             summary_dict[tag_change] = tag_counts[tag_change]
 
@@ -133,15 +129,12 @@ def summary_csv(args, output_file, summary):
     with open(output_file, 'w') as f:
         fieldnames = ['Editor', 'Changesets', 'Edits', 'Discussions', 'Edits/Changeset', 'Additions', 'Modifications', 'Deletions']
 
+        #Add field names for add/modify/delete for all tags we are checking
         for tag in json_dict['tags']:
             prefix = tag['tag']+'_'+tag['const']
             for suffix in [' added',' modified',' deleted']:
                 fieldnames.append(prefix + suffix)
-        #fieldnames = ['Editor']
-        #for key, value in summary.items():
-            #print(key)
-            #fieldnames.append(key)
-        #print(fieldnames)
+
         csv_writer = csv.DictWriter(f, fieldnames=fieldnames)
         csv_writer.writeheader()
 
@@ -248,6 +241,8 @@ def count_tag_change(changesets,info_json,osm_obj_type='*'):
     use_hardcoded_query_result = False
     print_query_response = False
     dont_process_query = False
+
+
     #changesets = {<changeset_id>:{<tag_to_check>:[<objects>]}}
     objects_by_changeset = {}
     note_every_change = False
@@ -256,7 +251,7 @@ def count_tag_change(changesets,info_json,osm_obj_type='*'):
     #We go by changeset, then by tag
     for changeset in changesets:
         #New changeset in list
-        objects_by_changeset[changeset] = {} #?
+        objects_by_changeset[changeset] = {}
         #Request XML for each changeset
         api_url = "https://www.openstreetmap.org/api/0.6/changeset/{changeset}/download".format(changeset=changeset)
         dev_api_url = "https://master.apis.dev.openstreetmap.org/api/0.6/changeset/{changeset}/download".format(changeset=changeset)
@@ -366,10 +361,9 @@ def count_tag_change(changesets,info_json,osm_obj_type='*'):
         #old_objects_by_changeset{<changeset_id>:{<tag_to_check>:[<objects>]}}
         #We go by changeset, then tag
         #We will index tags inside of indexing changesets
-        current_set_index = 0
-        current_tag_index = 0
         #print(tags_to_check)
         #>> [{'tag': 'name', 'const': 'highway'}, {'tag': 'name', 'const': 'waterway'}]
+        current_tag_index = 0
         objects_added = 0
 
         old_objects_by_changeset={}
@@ -423,7 +417,6 @@ def count_tag_change(changesets,info_json,osm_obj_type='*'):
 
 
 
-        differences_counted = 0
         compare_index = 0
         tag_index = 0
         for this_changeset in old_objects_by_changeset:
@@ -542,8 +535,7 @@ def changeset_csv(output_file, changesets, name=None, summary=False):
         with open(output_file, 'w') as f:
             fieldnames = ['Username', 'ID', 'Comment', 'Open', 'Created at', 'Closed at', 'Changes', 'Added', 'Modified', 'Deleted']
             tag_fieldnames = []
-            #Add fields for
-            #TEST_JSON_DICT['tags'] = [{'tag':'name','const':'highway'},{'tag':'surface','const':'highway'}]
+            #Add fields for tag add,modify,delete
             for tag in json_dict['tags']:
                 prefix = tag['tag']+'_'+tag['const']
                 for suffix in [' added',' modified',' deleted']:
@@ -631,6 +623,7 @@ def changeset_csv(output_file, changesets, name=None, summary=False):
                 'Discussions': discussion_count,
                 'Edits/Changeset': round((edit_count/changeset_count), 2)}
 
+        #Include tag-change counts into the summary dictionary
         for k,v in tag_change_totals.items():
             summary_dict[k] = v
 
@@ -734,6 +727,7 @@ def parse(item):
         pass
     return item
 
+OVERPASS_USER_AGENT = "Python/Changesets2csv/0.4.1 (https://github.com/KaartGroup/Changesets2CSV)"
 json_dict = {}
 
 if __name__ == "__main__":
