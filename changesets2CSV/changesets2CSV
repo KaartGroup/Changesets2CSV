@@ -26,9 +26,13 @@ from xlsxwriter.workbook import Workbook
 import json
 
 TEST_OVERPASS_USER_AGENT = "trackDownload/0.1 (lucas.bingham@kaartgroup.com)"
+'''
 with open('test.json') as f:
     TEST_JSON_DICT = json.load(f)
     print(TEST_JSON_DICT)
+'''
+
+
 
 #{'tags':[{'tag':'name','const':'highway'},{'tag':'surface','const':'highway'}],'users':[{'user_id':'9320902','name':'Traaker_L'},{'user_id':'8600365','name':'spuddy93'}]}
 
@@ -61,11 +65,19 @@ def create_summary(args):
     delete_total = 0
     summary = []
 
-    with open(args.users, mode='r') as f:
-        users = TEST_JSON_DICT['users']
-        for user in users:
-            print(user['name'])
-            print(user['user_id'])
+    tag_counts = []
+    #each entry willl be a dictionary with <tag_combo>_added/modified/deleted:0
+
+    with open(args.input_file, mode='r') as f:
+        loaded_dict = json.load(f)
+        global json_dict
+        json_dict = loaded_dict
+        users = json_dict['users']
+
+        #print(users)
+        #for user in users:
+            #print(user['name'])
+            #print(user['user_id'])
 
         for user in users:
             print("Processing changesets for {} ...".format(str(user['name'])), end="\r")
@@ -86,8 +98,11 @@ def create_summary(args):
             add_total += counts['Additions']
             mod_total += counts['Modifications']
             delete_total += counts['Deletions']
+            #TODO: Add tag-specific counts here
+
             time.sleep(10)
             print("Processing changesets for {} ... Done\n".format(str(user['name'])))
+
 
     try:
         epc_total = round((edit_total / changeset_total), 2)
@@ -511,7 +526,7 @@ def changeset_csv(output_file, changesets, name=None, summary=False):
             tag_fieldnames = []
             #Add fields for
             #TEST_JSON_DICT['tags'] = [{'tag':'name','const':'highway'},{'tag':'surface','const':'highway'}]
-            for tag in TEST_JSON_DICT['tags']:
+            for tag in json_dict['tags']:
                 prefix = tag['tag']+'_'+tag['const']
                 for suffix in [' added',' modified',' deleted']:
                     fieldnames.append(prefix + suffix)
@@ -536,7 +551,7 @@ def changeset_csv(output_file, changesets, name=None, summary=False):
             for set in changesets:
                 changeset_ids.append(set.get('id'))
 
-            tag_changes = count_tag_change(changeset_ids,TEST_JSON_DICT,"way")
+            tag_changes = count_tag_change(changeset_ids,json_dict,"way")
 
             for item in changesets:
                 changeset = {'Username': item.get('user'),
@@ -588,13 +603,15 @@ def changeset_csv(output_file, changesets, name=None, summary=False):
         raise
 
     if summary:
-        return {'Changesets': changeset_count,
+        summary_dict = {'Changesets': changeset_count,
                 'Edits': edit_count,
                 'Additions': add_count,
                 'Modifications': modify_count,
                 'Deletions': delete_count,
                 'Discussions': discussion_count,
                 'Edits/Changeset': round((edit_count/changeset_count), 2)}
+
+        return summary_dict
 
     return True
 
@@ -619,13 +636,15 @@ def get_args():
     specific.set_defaults(func=create_specific, which="specific")
 
     summary = subparsers.add_parser("summary", help="Create a summary of changesets", description="Create a summary for a specified time range.")
-    summary.add_argument('users', help="Path of the .config file of users.")
+    #summary.add_argument('users', help="Path of the .config file of users.")
+    summary.add_argument('input_file',help="Path of the .json file of users and tags")
     summary.add_argument('-s', '--start_time', nargs=1, type=valid_date, help="The start time of the window to query (YYYY-MM-DD).")
     summary.add_argument('-e', '--end_time', nargs=1, type=valid_date, help="The end time of the window to query (YYYY-MM-DD).")
     summary.set_defaults(func=create_summary, which="summary")
 
     weekly = subparsers.add_parser("weekly", help="Create a weekly summary of changesets")
-    weekly.add_argument('users', help="Path of the .config file of users.")
+    #weekly.add_argument('users', help="Path of the .config file of users.")
+    weekly.add_argument('input_file',help="Path of the .json file of users and tags")
     weekly.set_defaults(func=create_weekly, which="weekly")
 
     args = parser.parse_args()
@@ -693,6 +712,7 @@ def parse(item):
         pass
     return item
 
+json_dict = {}
 
 if __name__ == "__main__":
 
