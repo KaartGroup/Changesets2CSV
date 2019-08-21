@@ -238,6 +238,7 @@ def count_tag_change(changesets,info_json,osm_obj_type='*'):
     object_limit_for_query=0
     print_query = False
     dont_run_query = False
+    record_last_result = True
     use_hardcoded_query_result = False
     dont_process_query = False
 
@@ -295,6 +296,7 @@ def count_tag_change(changesets,info_json,osm_obj_type='*'):
                         this_obj[tag_element.attrib['k']] = tag_element.attrib['v']
                     objects_by_changeset[changeset][check_tag+'_'+const_tag].append(this_obj)
 
+    print('Objects compiled')
 
     change_count_by_changeset = {}
 
@@ -314,7 +316,8 @@ def count_tag_change(changesets,info_json,osm_obj_type='*'):
     #Start of Overpass Query
     #We will go by changeset, then by tag
     #[<changeset>][<tag>]
-    query = "[out:json][timeout:25];"
+    query_output = "[out:json]"
+    query_parts = ""
     query_count = 0
     for this_set in objects_by_changeset:
         for this_tag in objects_by_changeset[this_set]:
@@ -331,29 +334,51 @@ def count_tag_change(changesets,info_json,osm_obj_type='*'):
                         query_part = "timeline({osm_obj_type}, {osm_id}, {prev_version}); for (t['created']) {{ retro(_.val) {{ {osm_obj_type}(id:{osm_id}); out meta;}} }}"\
                         .format(osm_obj_type = osm_obj_type, osm_id = obj["id"],prev_version = int(obj["version"])-1)
 
-                        query += query_part
+                        query_parts += query_part
                         query_count += 1
 
-    #4Testing: print out the query and/or response
-    if print_query:
-        print('Query: ')
-        print(query)
+    query_timeout = "[timeout: {seconds}];".format(seconds=int(query_count/10))
+    testing_query_timeout= "[timeout: {seconds}];".format(seconds=250)
+    print("Timeout would be written as: ",query_timeout)
+    query = query_output + query_timeout + query_parts
 
-    print('Query submitted')
+    print('Query count is: ',query_count)
+
+    #4Testing print query
+    #print('Query: ')
+    #print(query)
+
+
     if dont_run_query == False:
         #Submit the query
-        query_json = overpass_query(query)
-    print('Query result received')
+        print('Query submitted')
+        try:
+            query_json = overpass_query(query)
+        except Exception:
+            print(Exception.args)
+        print('Query result received')
+
+        #4Testing print response
+        print('Response is: ',query_json)
+
+    #4Testing: Record our last result
+    if record_last_result:
+        if use_hardcoded_query_result == False:
+            with open('last_query_result.json','w') as outfile:
+                json.dump(query_json,outfile)
+                print('Result saved to last_query_result.json')
 
 
-    TEST_PRINT_LIMIT = 50
 
     if (dont_process_query == False and dont_run_query == False)\
     or use_hardcoded_query_result:
-        #4Testing: use a canned query_result from a string
+
+
+        #4Testing: use hardcoded_query_result
         if use_hardcoded_query_result:
-            query_json = HARDCODED_QUERY_RESULT
-        #Dictionaries of id, value, version
+            with open('last_query_result.json',mode='r') as infile:
+                query_json = json.load(infile)
+
         old_objects_by_changeset = {}
         #old_objects_by_changeset{<changeset_id>:{<tag_to_check>:[<objects>]}}
         #We go by changeset, then tag
@@ -366,39 +391,95 @@ def count_tag_change(changesets,info_json,osm_obj_type='*'):
         old_objects_by_changeset={}
 
         #Iterate through query result elements
-        old_version_objects = []
+        #We're turning this into a dictionary
+        #old_version_objects = []
+        old_version_objects = {}
         TEST_PRINT_COUNT = 0
         for element in query_json["elements"]:
-            this_obj = {"id":element['id'],"version":element['version']}
-            print('Element is: ')
-            print(element)
+            this_obj_id = str(element['id'])
+            #this_obj = {"id":element['id'],"version":element['version']}
+            this_obj = {"version":element['version']}
+            #4Testing print elements
+            #print('Element is: ')
+            #print(element)
             if 'tags' in element:
                 for key, value in element['tags'].items():
                     this_obj[key] = value
-                    
-            old_version_objects.append(this_obj)
 
-            if TEST_PRINT_COUNT < TEST_PRINT_LIMIT:
-                print(this_obj)
-                TEST_PRINT_COUNT += 1
+            #4Testing: Should we do this as a list or dictionary?
+            old_version_objects[this_obj_id] = this_obj
+
+
+        print("Length of old_version_objects is: ",len(old_version_objects))
+        print("Length of objects_by_changeset is: ",len(objects_by_changeset))
+        #print('Now length of old objects is ', len(old_version_objects))
+
+        #print(1/0)
 
         #Sort list of objects by changeset and tag
         old_obj_index = 0
+        print('Sets to run are')
         for set in objects_by_changeset:
+            print(set)
+
+        print('Keys in old version are')
+        print(old_version_objects.keys())
+
+        objects_checked = 0
+        no_add_count = 0
+
+        for set in objects_by_changeset:
+            print('Running set: ',set)
             old_objects_by_changeset[set] = {}
-            objects_by_tag = objects_by_changeset[set]
-            for tag in objects_by_tag:
+            #objects_by_tag = objects_by_changeset[set]
+            for tag in objects_by_changeset[set]:
                 old_objects_by_changeset[set][tag] = []
-                #objects_by_tag[tag] gives us the list of objects that we need to check
-                #We can iterate through this list to get the objects
-                for this_obj in objects_by_tag[tag]:
-                    #Iterate through tags in the query response json
-                    if old_obj_index < object_limit_for_query or object_limit_for_query == 0:
-                        obj_to_add = old_version_objects[old_obj_index]
-                        old_obj_index += 1
+                for this_obj in objects_by_changeset[set][tag]:
+
+                    this_obj_id = str(this_obj['id'])
+                    print("Key we're checking next is ",this_obj_id)
+                    if this_obj_id in old_version_objects.keys():
+                        obj_to_add = old_version_objects[this_obj_id]
+                        obj_to_add['id'] = this_obj_id
+                        print('Adding ', obj_to_add)
                         old_objects_by_changeset[set][tag].append(obj_to_add)
+                        objects_checked += 1
+                    else:
+                        print('NO ADD')
+                        no_add_count += 1
 
+                    #Iterate through tags in the query response json
+                    '''
+                    print('New object is: ',this_obj)
+                    if old_obj_index < object_limit_for_query or object_limit_for_query == 0:
+                        try:
+                            obj_to_add = old_version_objects[old_obj_index]
+                            print('Old object is: ',obj_to_add)
+                            old_obj_index += 1
+                            old_objects_by_changeset[set][tag].append(obj_to_add)
+                        except IndexError:
+                            print('Index problem. Returning early')
+                            #print('Old obj')
+                            #print(old_version_objects)
+                            #print('End old obj')
+                            print("Length of old_version_objects is: ",len(old_version_objects))
+                            print("Length of objects_by_changeset is: ",len(objects_by_changeset))
+                            stop_index = old_obj_index
+                            old_obj_index = 0
+                            for set in objects_by_changeset:
+                                for tag in objects_by_changeset[set]:
+                                    for this_obj in objects_by_changeset[set][tag]:
+                                        if old_obj_index < stop_index:
+                                            print(this_obj)
+                                            print(old_version_objects[old_obj_index])
+                                            old_obj_index += 1
 
+                            print("an entry outside of the supposed range", old_version_objects[stop_index + 3])
+                            return {'retry':'index_out_of_range'}
+                        '''
+
+        print('we managed to check ',objects_checked, ' objects')
+        print(no_add_count," objects were not checked")
 
         #4Testing: Print list of old-version objects
         if print_version_lists:
@@ -434,6 +515,10 @@ def count_tag_change(changesets,info_json,osm_obj_type='*'):
 
                     old_obj = old_objects_by_changeset[this_changeset][this_tag][compare_index]
                     new_obj = objects_by_changeset[this_changeset][this_tag][compare_index]
+
+                    #4Testing: print objects being compared
+                    #print('Old: ',old_obj)
+                    #print('New: ',new_obj)
 
                     if str(old_obj['id']) != new_obj['id']:
                         print('ERROR: ID MISTMATCH')
@@ -735,6 +820,8 @@ def parse(item):
 
 OVERPASS_USER_AGENT = "Python/Changesets2csv/0.4.1 (https://github.com/KaartGroup/Changesets2CSV)"
 json_dict = {}
+#4Testing: use hardcoded_query_result
+
 
 if __name__ == "__main__":
 
