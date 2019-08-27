@@ -189,10 +189,12 @@ def overpass_status(api_status_url = "https://overpass-api.de/api/status"):
             parsed_response['slots_available'] = int(i.split(" ")[0].strip())
         elif "Slot available after" in i:
             parsed_response['wait_time'].append(int(i.split(" ")[5]))
+            print('Adding wait_time of ', parsed_response['wait_time'])
     if 'slots_available' not in parsed_response:
         parsed_response['slots_available'] = 0
     wait_time = 0
     if parsed_response['rate_limit'] - parsed_response['slots_available'] >= 2 and len(parsed_response['wait_time']) > 0:
+        #We use max to ensure that there is always an open slot
         return max(parsed_response['wait_time'])
     return wait_time
 
@@ -206,11 +208,14 @@ def overpass_query(query):
     wait_time = overpass_status()
     loop = 0
     while (wait_time > 0):
+        print('Waiting for wait_time: ',wait_time)
         time.sleep(wait_time)
         wait_time = overpass_status()
         loop += 1
-    while (response.status_code == requests.codes.too_many_requests):
+    while (response.status_code == requests.codes.too_many_requests) or (response.status_code == requests.codes.gateway_timeout):
+        print('Waiting to resubmit . . .', end="\r")
         time.sleep(10)
+        print('Resubmitted')
         response = cached_session.post("http://overpass-api.de/api/interpreter", data={'data': query})
     if (response.status_code != requests.codes.ok):
         print("Bad request")
@@ -241,11 +246,16 @@ def count_tag_change(changesets,info_json,osm_obj_type='*'):
     record_last_result = True
     use_hardcoded_query_result = False
     dont_process_query = False
+    note_every_change = False
 
 
     #changesets = {<changeset_id>:{<tag_to_check>:[<objects>]}}
+
+    #TODO:
+    #We could change this to: {<changeset_id>:{<tag_to_check>:[<objects>],'add'':0,'modify':0,'delete':0}}
+    #Then we could just get len()s of objs_modified, objs_created, objs_deleted
+
     objects_by_changeset = {}
-    note_every_change = False
 
     #Get all objects touched in each changeset
     #We go by changeset, then by tag
@@ -263,8 +273,9 @@ def count_tag_change(changesets,info_json,osm_obj_type='*'):
         #If we are looking for a constant tag
         for this_tag in tags_to_check:
             check_tag = this_tag['tag']
-
             const_tag = this_tag['const']
+
+            #TODO: Restructure this list into a dictionary
             objects_by_changeset[changeset][check_tag+'_'+const_tag] = []
 
             if const_tag != "none":
@@ -316,6 +327,10 @@ def count_tag_change(changesets,info_json,osm_obj_type='*'):
     #Start of Overpass Query
     #We will go by changeset, then by tag
     #[<changeset>][<tag>]
+
+    #TODO: Do not query the same version of the same object more than once
+    #We can construct a dictionary of versions and IDs from old_objects_by_changeset
+
     query_output = "[out:json]"
     query_parts = ""
     query_count = 0
@@ -337,17 +352,17 @@ def count_tag_change(changesets,info_json,osm_obj_type='*'):
                         query_parts += query_part
                         query_count += 1
 
-    query_timeout = "[timeout: {seconds}];".format(seconds=int(query_count/10))
+    query_timeout = "[timeout: {seconds}];".format(seconds=int(query_count/5))
     testing_query_timeout= "[timeout: {seconds}];".format(seconds=250)
     print("Timeout would be written as: ",query_timeout)
     query = query_output + query_timeout + query_parts
 
     print('Query count is: ',query_count)
 
-    #4Testing print query
-    #print('Query: ')
-    #print(query)
+    #TODO: handle the case of 0 query count
 
+    if query_count == 0:
+        dont_run_query = True
 
     if dont_run_query == False:
         #Submit the query
@@ -362,7 +377,7 @@ def count_tag_change(changesets,info_json,osm_obj_type='*'):
         print('Response is: ',query_json)
 
     #4Testing: Record our last result
-    if record_last_result:
+    if record_last_result and dont_run_query == False:
         if use_hardcoded_query_result == False:
             with open('last_query_result.json','w') as outfile:
                 json.dump(query_json,outfile)
@@ -383,38 +398,30 @@ def count_tag_change(changesets,info_json,osm_obj_type='*'):
         #old_objects_by_changeset{<changeset_id>:{<tag_to_check>:[<objects>]}}
         #We go by changeset, then tag
         #We will index tags inside of indexing changesets
-        #print(tags_to_check)
-        #>> [{'tag': 'name', 'const': 'highway'}, {'tag': 'name', 'const': 'waterway'}]
         current_tag_index = 0
         objects_added = 0
 
         old_objects_by_changeset={}
 
         #Iterate through query result elements
-        #We're turning this into a dictionary
-        #old_version_objects = []
         old_version_objects = {}
         TEST_PRINT_COUNT = 0
         for element in query_json["elements"]:
             this_obj_id = str(element['id'])
-            #this_obj = {"id":element['id'],"version":element['version']}
             this_obj = {"version":element['version']}
-            #4Testing print elements
-            #print('Element is: ')
-            #print(element)
+
+            #Add object tags, if they exist on this object
             if 'tags' in element:
                 for key, value in element['tags'].items():
                     this_obj[key] = value
 
-            #4Testing: Should we do this as a list or dictionary?
+
             old_version_objects[this_obj_id] = this_obj
 
 
         print("Length of old_version_objects is: ",len(old_version_objects))
         print("Length of objects_by_changeset is: ",len(objects_by_changeset))
-        #print('Now length of old objects is ', len(old_version_objects))
 
-        #print(1/0)
 
         #Sort list of objects by changeset and tag
         old_obj_index = 0
@@ -433,6 +440,7 @@ def count_tag_change(changesets,info_json,osm_obj_type='*'):
             old_objects_by_changeset[set] = {}
             #objects_by_tag = objects_by_changeset[set]
             for tag in objects_by_changeset[set]:
+                #TODO: Restructure this list into a dictionary
                 old_objects_by_changeset[set][tag] = []
                 for this_obj in objects_by_changeset[set][tag]:
 
@@ -562,7 +570,7 @@ def count_tag_change(changesets,info_json,osm_obj_type='*'):
 
         return changes_by_changeset
     else:
-        return {'added':0,'modified':0,'deleted':0}
+        return {}
 
 def get_changesets(user=None, start_time=None, end_time=None, bbox=None):
     """Get the changesets for a user between start_time and end_time with no bbox
@@ -683,11 +691,14 @@ def changeset_csv(output_file, changesets, name=None, summary=False):
                     changeset[key] = changesetInformation[key]
 
                 #Tag-specific adds, modifies, deletes
-                these_tag_changes = tag_changes[item.get('id')]
-                for this_tag in these_tag_changes:
-                    for change_type, change_count in these_tag_changes[this_tag].items():
-                        changeset[change_type] = change_count
-                        tag_change_totals[change_type] += change_count
+                if item.get('id') in tag_changes:
+                    these_tag_changes = tag_changes[item.get('id')]
+                    for this_tag in these_tag_changes:
+                        for change_type, change_count in these_tag_changes[this_tag].items():
+                            changeset[change_type] = change_count
+                            tag_change_totals[change_type] += change_count
+                else:
+                    print('Empty return')
 
 
 
