@@ -533,12 +533,20 @@ def changeset_csv(output_file, changesets, name=None, summary=False):
         with open(output_file, 'w') as f:
             fieldnames = ['Username', 'ID', 'Comment', 'Open', 'Created at', 'Closed at', 'Changes', 'Added', 'Modified', 'Deleted']
             tag_fieldnames = []
+
             #Add fields for tag add,modify,delete
+            #If we didn't pass a .json, default to just name
+            if summary == False:
+                json_dict['tags']=[{"tag":"name","const":"highway"}]
+
             for tag in json_dict['tags']:
                 prefix = tag['tag']+'_'+tag['const']
                 for suffix in [' added',' modified',' deleted']:
                     fieldnames.append(prefix + suffix)
                     tag_fieldnames.append(prefix + suffix)
+
+
+
 
             fieldnames.extend(['Discussions', 'URL'])
             csv_writer = csv.DictWriter(f, fieldnames=fieldnames)
