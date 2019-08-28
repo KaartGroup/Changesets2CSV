@@ -10,6 +10,12 @@ __pycache__/
 *.csv
 *.xlsx
 
+#testing jsons
+test_*.json
+
+#last query
+last_query_result.json
+
 # Distribution / packaging
 .Python
 build/
