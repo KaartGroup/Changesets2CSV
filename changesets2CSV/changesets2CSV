@@ -26,9 +26,6 @@ from xlsxwriter.workbook import Workbook
 import json
 
 
-
-
-
 def valid_date(s):
     try:
         return datetime.strptime(s, "%Y-%m-%d")
@@ -56,16 +53,17 @@ def create_summary(args):
     mod_total = 0
     delete_total = 0
     summary = []
+    #TODO: Remove global, pass json_dict to functions called from
+    #within this one, instead
+    global json_dict
 
     tag_counts = {}
     #each entry willl be a dictionary with <tag_combo>_added/modified/deleted:0
     #e.g. {'name_highway added':0,'name_highway modified':0, 'name_highway deleted':0}
 
     with open(args.input_file, mode='r') as f:
-        global json_dict
         if args.input_file.endswith('.json'):
-            loaded_dict = json.load(f)
-            json_dict = loaded_dict
+            json_dict = json.load(f)
             users = json_dict['users']
         elif args.input_file.endswith('.config'):
             users = csv.DictReader(f)
@@ -103,7 +101,6 @@ def create_summary(args):
 
             time.sleep(10)
             print("Processing changesets for {} ... Done\n".format(str(user['name'])))
-
 
 
     try:
@@ -173,8 +170,9 @@ def count_new_modified_deleted(changeset):
     newModifiedDeleted['Deleted'] = len(root.findall('delete'))
     return newModifiedDeleted
 
-def overpass_status(api_status_url = "https://overpass-api.de/api/status"):
+def overpass_status():
     """Get the overpass status -- this returns an int with the time to wait"""
+    api_status_url = "https://overpass-api.de/api/status"
     session = requests.session()
     session.headers.update({'User-Agent': OVERPASS_USER_AGENT})
     cached_session = CacheControl(session)
@@ -183,17 +181,13 @@ def overpass_status(api_status_url = "https://overpass-api.de/api/status"):
         raise ValueError("Bad Request: {}".format(api_status_url))
     parsed_response = {'wait_time': []}
     for i in response.text.splitlines():
-        if "Connected as" in i:
-            parsed_response['connected_as'] = i.split(":")[1].strip()
-        elif "Current time" in i:
-            parsed_response['current_time'] = i.split(":")[1].strip()
-        elif "Rate limit" in i:
+        if "Rate limit" in i:
             parsed_response['rate_limit'] = int(i.split(":")[1].strip())
         elif "slots available now" in i:
             parsed_response['slots_available'] = int(i.split(" ")[0].strip())
         elif "Slot available after" in i:
             parsed_response['wait_time'].append(int(i.split(" ")[5]))
-            print('Adding wait_time of ', parsed_response['wait_time'])
+            print('Overpass quota reached, waiting for ', parsed_response['wait_time'], "seconds")
     if 'slots_available' not in parsed_response:
         parsed_response['slots_available'] = 0
     wait_time = 0
@@ -208,7 +202,10 @@ def overpass_query(query):
     session = requests.session()
     session.headers.update({'User-Agent': OVERPASS_USER_AGENT})
     cached_session = CacheControl(session)
-    response = cached_session.post("http://overpass-api.de/api/interpreter", data={'data': query})
+    response = cached_session.post(
+                            "http://overpass-api.de/api/interpreter",
+                            data={'data': query}
+                        )
     wait_time = overpass_status()
     loop = 0
     while (wait_time > 0):
@@ -216,11 +213,14 @@ def overpass_query(query):
         time.sleep(wait_time)
         wait_time = overpass_status()
         loop += 1
-    while (response.status_code == requests.codes.too_many_requests) or (response.status_code == requests.codes.gateway_timeout):
+    while response.status_code in (requests.codes.too_many_requests, requests.codes.gateway_timeout):
         print('Waiting to resubmit . . .', end="\r")
         time.sleep(10)
         print('Resubmitted')
-        response = cached_session.post("http://overpass-api.de/api/interpreter", data={'data': query})
+        response = cached_session.post(
+                                "http://overpass-api.de/api/interpreter",
+                                data={'data': query}
+                            )
     if (response.status_code != requests.codes.ok):
         print("Bad request")
         print(response.text)
@@ -241,19 +241,6 @@ def overpass_query(query):
 
 def count_tag_change(changesets,info_json,osm_obj_type='*'):
     tags_to_check = info_json['tags']
-
-    #Testing variables
-    print_version_lists = False
-    object_limit_for_query=0
-    print_query = False
-    dont_run_query = False
-    record_last_result = True
-    use_hardcoded_query_result = False
-    dont_process_query = False
-    note_every_change = False
-
-
-
     #TODO:
     #We could change this to: {<changeset_id>:{<tag_to_check>:[<objects>],'add'':0,'modify':0,'delete':0}}
     #Then we could just get len()s of objs_modified, objs_created, objs_deleted
@@ -268,7 +255,6 @@ def count_tag_change(changesets,info_json,osm_obj_type='*'):
         objects_by_changeset[changeset] = {}
         #Request XML for each changeset
         api_url = "https://www.openstreetmap.org/api/0.6/changeset/{changeset}/download".format(changeset=changeset)
-        dev_api_url = "https://master.apis.dev.openstreetmap.org/api/0.6/changeset/{changeset}/download".format(changeset=changeset)
 
         session = CacheControl(requests.session())
         result = session.get(api_url).text
@@ -290,9 +276,9 @@ def count_tag_change(changesets,info_json,osm_obj_type='*'):
             #If we only care about the tag being changed
             else:
                 #Retrieve all objects that have the tags we're looking for
-                objs_modified = root.findall("./modify/{osm_obj_type}".format(const_tag=const_tag,osm_obj_type=osm_obj_type))
-                objs_created = root.findall("./create/{osm_obj_type}".format(const_tag=const_tag,osm_obj_type=osm_obj_type))
-                objs_deleted = root.findall("./delete/{osm_obj_type}".format(const_tag=const_tag,osm_obj_type=osm_obj_type))
+                objs_modified = root.findall("./modify/{osm_obj_type}".format(osm_obj_type=osm_obj_type))
+                objs_created = root.findall("./create/{osm_obj_type}".format(osm_obj_type=osm_obj_type))
+                objs_deleted = root.findall("./delete/{osm_obj_type}".format(osm_obj_type=osm_obj_type))
 
             #Store each modified object's data in our list, new_ver_objects, as dictionaries
             for obj in objs_modified:
@@ -304,176 +290,138 @@ def count_tag_change(changesets,info_json,osm_obj_type='*'):
 
     print('Objects compiled')
 
-    #4Testing: print objects and data in new_ver_objects list
-    if print_version_lists:
-        print("New_Ver: ")
-        print(objects_by_changeset)
-        print()
 
     #TODO: Do not query the same version of the same object more than once
     #We can construct a dictionary of versions and IDs from old_objects_by_changeset
     #Build query to get previous versions of all objects in new_ver_objects
+
     query_output = "[out:json]"
     query_parts = ""
     query_count = 0
     for this_set in objects_by_changeset:
         for this_tag in objects_by_changeset[this_set]:
-            if (query_count < object_limit_for_query or object_limit_for_query == 0):
-                #Build each query part for each object
-                for obj in objects_by_changeset[this_set][this_tag]:
-                    if obj["version"] > 1 and (query_count < object_limit_for_query or object_limit_for_query == 0):
-                        #4Testing: If we're not testing the whole query
-                        if object_limit_for_query != 0:
-                            print("Object ",query_count+1," of ",object_limit_for_query)
-                        query_part = "timeline({osm_obj_type}, {osm_id}, {prev_version}); for (t['created']) {{ retro(_.val) {{ {osm_obj_type}(id:{osm_id}); out meta;}} }}"\
-                        .format(osm_obj_type = osm_obj_type, osm_id = obj["id"],prev_version = int(obj["version"])-1)
-                        query_parts += query_part
-                        query_count += 1
+            #Build each query part for each object
+            for obj in objects_by_changeset[this_set][this_tag]:
+                if obj["version"] > 1:
+
+                    query_part = "timeline({osm_obj_type}, {osm_id}, {prev_version}); for (t['created']) {{ retro(_.val) {{ {osm_obj_type}(id:{osm_id}); out meta;}} }}"\
+                    .format(osm_obj_type = osm_obj_type, osm_id = obj["id"],prev_version = int(obj["version"])-1)
+                    query_parts += query_part
+                    query_count += 1
 
     query_timeout = "[timeout: {seconds}];".format(seconds=int(query_count/5))
     testing_query_timeout= "[timeout: {seconds}];".format(seconds=250)
     query = query_output + query_timeout + query_parts
     print('Query count is: ',query_count)
 
-    if query_count == 0:
-        dont_run_query = True
 
-    if dont_run_query == False:
-        #Submit the query
-        print('Query submitted')
-        try:
-            query_json = overpass_query(query)
-        except Exception:
-            print(Exception.args)
-        print('Query result received')
-
-    #4Testing: Record our last result
-    if record_last_result and dont_run_query == False:
-        if use_hardcoded_query_result == False:
-            with open('last_query_result.json','w') as outfile:
-                json.dump(query_json,outfile)
-                print('Result saved to last_query_result.json')
-
-    if (dont_process_query == False and dont_run_query == False)\
-    or use_hardcoded_query_result:
-
-        #4Testing: use hardcoded_query_result
-        if use_hardcoded_query_result:
-            with open('last_query_result.json',mode='r') as infile:
-                query_json = json.load(infile)
-
-        #We go by changeset, then tag
-        old_objects_by_changeset = {}
-
-        #Iterate through query result elements
-        old_version_objects = {}
-        for element in query_json["elements"]:
-            this_obj_id = str(element['id'])
-            this_obj = {"version":element['version']}
-
-            #Add object tags, if they exist on this object
-            if 'tags' in element:
-                for key, value in element['tags'].items():
-                    this_obj[key] = value
+    #Submit the query
+    print('Query submitted')
+    try:
+        query_json = overpass_query(query)
+    except Exception:
+        print(Exception.args)
+    print('Query result received')
 
 
-            old_version_objects[this_obj_id] = this_obj
 
 
-        #4Testing: list all changeset ids
-        #print('Keys in old version are')
-        #print(old_version_objects.keys())
 
-        objects_checked = 0
-        no_add_count = 0
+    #We go by changeset, then tag
+    old_objects_by_changeset = {}
 
-        for set in objects_by_changeset:
-            old_objects_by_changeset[set] = {}
-            #objects_by_tag = objects_by_changeset[set]
-            for tag in objects_by_changeset[set]:
-                #TODO: Restructure this list into a dictionary
-                old_objects_by_changeset[set][tag] = []
-                for this_obj in objects_by_changeset[set][tag]:
+    #Iterate through query result elements
+    old_version_objects = {}
+    for element in query_json["elements"]:
+        this_obj_id = str(element['id'])
+        this_obj = {"version":element['version']}
 
-                    this_obj_id = str(this_obj['id'])
-                    if this_obj_id in old_version_objects.keys():
-                        obj_to_add = old_version_objects[this_obj_id]
-                        obj_to_add['id'] = this_obj_id
-                        old_objects_by_changeset[set][tag].append(obj_to_add)
-                        objects_checked += 1
-                    else:
-                        no_add_count += 1
+        #Add object tags, if they exist on this object
+        if 'tags' in element:
+            for key, value in element['tags'].items():
+                this_obj[key] = value
 
-        print('we managed to check ',objects_checked, ' objects')
-        print(no_add_count," objects were not checked")
 
-        #4Testing: Print list of old-version objects
-        if print_version_lists:
-            print("Old_Ver: ")
-            print(old_objects_by_changeset)
-            print()
+        old_version_objects[this_obj_id] = this_obj
 
-        #See what values changed
-        changes_by_changeset = {}
-        #Initialize change counts for all sets
-        for this_changeset in old_objects_by_changeset:
-            changes_by_changeset[this_changeset] = {}
-            for this_tag in old_objects_by_changeset[this_changeset]:
-                add_key = this_tag +' added'
-                modify_key = this_tag + ' modified'
-                delete_key = this_tag + ' deleted'
-                changes_by_changeset[this_changeset][this_tag] = {add_key:0,modify_key:0,delete_key:0}
 
-        compare_index = 0
+    #4Testing: list all changeset ids
+    #print('Keys in old version are')
+    #print(old_version_objects.keys())
+
+    objects_checked = 0
+    no_add_count = 0
+
+    for changeset in objects_by_changeset:
+        old_objects_by_changeset[changeset] = {}
+        #objects_by_tag = objects_by_changeset[set]
+        for tag in objects_by_changeset[changeset]:
+            #TODO: Restructure this list into a dictionary
+            old_objects_by_changeset[changeset][tag] = []
+            for this_obj in objects_by_changeset[changeset][tag]:
+
+                this_obj_id = str(this_obj['id'])
+                if this_obj_id in old_version_objects.keys():
+                    obj_to_add = old_version_objects[this_obj_id]
+                    obj_to_add['id'] = this_obj_id
+                    old_objects_by_changeset[changeset][tag].append(obj_to_add)
+                    objects_checked += 1
+                else:
+                    no_add_count += 1
+
+    print('we managed to check ',objects_checked, ' objects')
+    print(no_add_count," objects were not checked")
+
+
+    #See what values changed
+    changes_by_changeset = {}
+    #Initialize change counts for all sets
+    for this_changeset in old_objects_by_changeset:
+        changes_by_changeset[this_changeset] = {}
+        for this_tag in old_objects_by_changeset[this_changeset]:
+            add_key = this_tag +' added'
+            modify_key = this_tag + ' modified'
+            delete_key = this_tag + ' deleted'
+            changes_by_changeset[this_changeset][this_tag] = {add_key:0,modify_key:0,delete_key:0}
+
+    compare_index = 0
+    tag_index = 0
+    for this_changeset in old_objects_by_changeset:
         tag_index = 0
-        for this_changeset in old_objects_by_changeset:
-            tag_index = 0
-            for this_tag in old_objects_by_changeset[this_changeset]:
-                compare_index = 0
-                for this_obj in old_objects_by_changeset[this_changeset][this_tag]:
-                    this_tag_to_check = tags_to_check[tag_index]['tag']
+        for this_tag in old_objects_by_changeset[this_changeset]:
+            compare_index = 0
+            for this_obj in old_objects_by_changeset[this_changeset][this_tag]:
+                this_tag_to_check = tags_to_check[tag_index]['tag']
 
-                    old_obj = old_objects_by_changeset[this_changeset][this_tag][compare_index]
-                    new_obj = objects_by_changeset[this_changeset][this_tag][compare_index]
+                old_obj = old_objects_by_changeset[this_changeset][this_tag][compare_index]
+                new_obj = objects_by_changeset[this_changeset][this_tag][compare_index]
 
-                    if str(old_obj['id']) != new_obj['id']:
-                        print('ERROR: ID MISTMATCH')
+                if str(old_obj['id']) != new_obj['id']:
+                    print('ERROR: ID MISTMATCH')
 
-                    old_val = None
-                    if old_obj.get(this_tag_to_check,False):
-                        old_val = old_obj[this_tag_to_check]
+                old_val = None
+                if old_obj.get(this_tag_to_check,False):
+                    old_val = old_obj[this_tag_to_check]
 
-                    new_val = None
-                    if new_obj.get(this_tag_to_check,False):
-                        new_val = new_obj[this_tag_to_check]
+                new_val = None
+                if new_obj.get(this_tag_to_check,False):
+                    new_val = new_obj[this_tag_to_check]
 
-                    do_print = note_every_change
-                    if old_val == None:
-                        if new_val != None:
-                            if old_val != new_val:
-                                if do_print: print(new_val,' added')
-                                changes_by_changeset[this_changeset][this_tag][this_tag +' added'] += 1
-                            else:
-                                if do_print: print(old_val," didn't change")
+
+                if old_val == None:
+                    if new_val != None:
+                        changes_by_changeset[this_changeset][this_tag][this_tag +' added'] += 1
+                else:
+                    if new_val != None:
+                        if old_val != new_val:
+                            changes_by_changeset[this_changeset][this_tag][this_tag +' modified'] += 1
                     else:
-                        if new_val != None:
-                            if old_val != new_val:
-                                if do_print: print(old_val,' changed to ',new_val)
-                                changes_by_changeset[this_changeset][this_tag][this_tag +' modified'] += 1
-                            else:
-                                if do_print: print(old_val," didn't change")
-                        else:
-                            if old_val != new_val:
-                                if do_print: print(old_val,' deleted')
-                                changes_by_changeset[this_changeset][this_tag][this_tag +' deleted'] += 1
-                            else:
-                                if do_print: print(old_val," didn't change")
+                        changes_by_changeset[this_changeset][this_tag][this_tag +' deleted'] += 1
 
-                    compare_index += 1
-                tag_index += 1
-        return changes_by_changeset
-    else:
-        return {}
+
+                compare_index += 1
+            tag_index += 1
+    return changes_by_changeset
 
 def get_changesets(user=None, start_time=None, end_time=None, bbox=None):
     """Get the changesets for a user between start_time and end_time with no bbox
