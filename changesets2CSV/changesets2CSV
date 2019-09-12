@@ -77,7 +77,7 @@ def create_summary(args):
 
 
         for user in users:
-            print("Processing changesets for {} ...".format(str(user['name'])), end="\r")
+            print("Processing changesets for {} ...".format(str(user['name'])))
             out_file = os.path.join(args.output, str(user['name']) + '.csv')
             changesets = get_changesets(user['user_id'], args.start_time, args.end_time, args.bbox)
 
@@ -244,10 +244,8 @@ def count_tag_change(changesets,info_json,osm_obj_type='*'):
     #TODO:
     #We could change this to: {<changeset_id>:{<tag_to_check>:[<objects>],'add'':0,'modify':0,'delete':0}}
     #Then we could just get len()s of objs_modified, objs_created, objs_deleted
-
-    objects_by_changeset = {}
     #Formatted as {<changeset_id>:{<tag_constant>:[<objects>]}}
-
+    objects_by_changeset = {}
     #Get all objects touched in each changeset
     #We go by changeset, then by tag
     for changeset in changesets:
@@ -255,16 +253,13 @@ def count_tag_change(changesets,info_json,osm_obj_type='*'):
         objects_by_changeset[changeset] = {}
         #Request XML for each changeset
         api_url = "https://www.openstreetmap.org/api/0.6/changeset/{changeset}/download".format(changeset=changeset)
-
         session = CacheControl(requests.session())
         result = session.get(api_url).text
         root = ET.fromstring(result)
-
         #If we are looking for a constant tag
         for this_tag in tags_to_check:
             check_tag = this_tag['tag']
             const_tag = this_tag['const']
-
             #TODO: Restructure this list into a dictionary
             objects_by_changeset[changeset][check_tag+'_'+const_tag] = []
             #If we're using a constant tag
@@ -279,7 +274,6 @@ def count_tag_change(changesets,info_json,osm_obj_type='*'):
                 objs_modified = root.findall("./modify/{osm_obj_type}".format(osm_obj_type=osm_obj_type))
                 objs_created = root.findall("./create/{osm_obj_type}".format(osm_obj_type=osm_obj_type))
                 objs_deleted = root.findall("./delete/{osm_obj_type}".format(osm_obj_type=osm_obj_type))
-
             #Store each modified object's data in our list, new_ver_objects, as dictionaries
             for obj in objs_modified:
                 this_obj = {"id":obj.attrib['id'],"version":int(obj.attrib['version'])}
@@ -289,12 +283,9 @@ def count_tag_change(changesets,info_json,osm_obj_type='*'):
                 objects_by_changeset[changeset][check_tag+'_'+const_tag].append(this_obj)
 
     print('Objects compiled')
-
-
     #TODO: Do not query the same version of the same object more than once
     #We can construct a dictionary of versions and IDs from old_objects_by_changeset
     #Build query to get previous versions of all objects in new_ver_objects
-
     query_output = "[out:json]"
     query_parts = ""
     query_count = 0
@@ -303,7 +294,6 @@ def count_tag_change(changesets,info_json,osm_obj_type='*'):
             #Build each query part for each object
             for obj in objects_by_changeset[this_set][this_tag]:
                 if obj["version"] > 1:
-
                     query_part = "timeline({osm_obj_type}, {osm_id}, {prev_version}); for (t['created']) {{ retro(_.val) {{ {osm_obj_type}(id:{osm_id}); out meta;}} }}"\
                     .format(osm_obj_type = osm_obj_type, osm_id = obj["id"],prev_version = int(obj["version"])-1)
                     query_parts += query_part
@@ -313,8 +303,6 @@ def count_tag_change(changesets,info_json,osm_obj_type='*'):
     testing_query_timeout= "[timeout: {seconds}];".format(seconds=250)
     query = query_output + query_timeout + query_parts
     print('Query count is: ',query_count)
-
-
     #Submit the query
     print('Query submitted')
     try:
@@ -322,44 +310,28 @@ def count_tag_change(changesets,info_json,osm_obj_type='*'):
     except Exception:
         print(Exception.args)
     print('Query result received')
-
-
-
-
-
     #We go by changeset, then tag
     old_objects_by_changeset = {}
-
     #Iterate through query result elements
     old_version_objects = {}
     for element in query_json["elements"]:
         this_obj_id = str(element['id'])
         this_obj = {"version":element['version']}
-
         #Add object tags, if they exist on this object
         if 'tags' in element:
             for key, value in element['tags'].items():
                 this_obj[key] = value
 
-
         old_version_objects[this_obj_id] = this_obj
-
-
-    #4Testing: list all changeset ids
-    #print('Keys in old version are')
-    #print(old_version_objects.keys())
 
     objects_checked = 0
     no_add_count = 0
-
     for changeset in objects_by_changeset:
         old_objects_by_changeset[changeset] = {}
-        #objects_by_tag = objects_by_changeset[set]
         for tag in objects_by_changeset[changeset]:
             #TODO: Restructure this list into a dictionary
             old_objects_by_changeset[changeset][tag] = []
             for this_obj in objects_by_changeset[changeset][tag]:
-
                 this_obj_id = str(this_obj['id'])
                 if this_obj_id in old_version_objects.keys():
                     obj_to_add = old_version_objects[this_obj_id]
@@ -368,11 +340,6 @@ def count_tag_change(changesets,info_json,osm_obj_type='*'):
                     objects_checked += 1
                 else:
                     no_add_count += 1
-
-    print('we managed to check ',objects_checked, ' objects')
-    print(no_add_count," objects were not checked")
-
-
     #See what values changed
     changes_by_changeset = {}
     #Initialize change counts for all sets
@@ -392,32 +359,19 @@ def count_tag_change(changesets,info_json,osm_obj_type='*'):
             compare_index = 0
             for this_obj in old_objects_by_changeset[this_changeset][this_tag]:
                 this_tag_to_check = tags_to_check[tag_index]['tag']
-
                 old_obj = old_objects_by_changeset[this_changeset][this_tag][compare_index]
                 new_obj = objects_by_changeset[this_changeset][this_tag][compare_index]
-
                 if str(old_obj['id']) != new_obj['id']:
                     print('ERROR: ID MISTMATCH')
-
-                old_val = None
-                if old_obj.get(this_tag_to_check,False):
-                    old_val = old_obj[this_tag_to_check]
-
-                new_val = None
-                if new_obj.get(this_tag_to_check,False):
-                    new_val = new_obj[this_tag_to_check]
-
-
-                if old_val == None:
-                    if new_val != None:
+                old_val = old_obj.get(this_tag_to_check, None)
+                new_val = new_obj.get(this_tag_to_check,None)
+                if new_val != old_val:
+                    if old_val is None:
                         changes_by_changeset[this_changeset][this_tag][this_tag +' added'] += 1
-                else:
-                    if new_val != None:
-                        if old_val != new_val:
-                            changes_by_changeset[this_changeset][this_tag][this_tag +' modified'] += 1
-                    else:
+                    elif new_val is None:
                         changes_by_changeset[this_changeset][this_tag][this_tag +' deleted'] += 1
-
+                    else:
+                        changes_by_changeset[this_changeset][this_tag][this_tag +' modified'] += 1
 
                 compare_index += 1
             tag_index += 1
@@ -462,7 +416,6 @@ def get_changesets(user=None, start_time=None, end_time=None, bbox=None):
         root = ET.fromstring(result.text)
         sets = root.findall('changeset')
         changesets.extend(sets)
-
         dateFormat = '%Y-%m-%dT%H:%M:%SZ'
         while len(sets) >= 100:
             new_end = datetime.strptime(sets[-1].get('closed_at'), dateFormat) - timedelta(0,5)
@@ -484,10 +437,8 @@ def changeset_csv(output_file, changesets, name=None, summary=False):
     try:
         with open(output_file, 'w') as f:
             fieldnames = ['Username', 'ID', 'Comment', 'Open', 'Created at', 'Closed at', 'Changes', 'Added', 'Modified', 'Deleted']
-            tag_fieldnames = []
-
             #Add fields for tag add,modify,delete
-            #If we didn't pass a .json, default to just name
+            #If we didn't pass a .json, default to just names of highways
             if summary == False:
                 json_dict['tags']=[{"tag":"name","const":"highway"}]
 
@@ -495,39 +446,28 @@ def changeset_csv(output_file, changesets, name=None, summary=False):
                 prefix = tag['tag']+'_'+tag['const']
                 for suffix in [' added',' modified',' deleted']:
                     fieldnames.append(prefix + suffix)
-                    tag_fieldnames.append(prefix + suffix)
-
-
-
 
             fieldnames.extend(['Discussions', 'URL'])
             csv_writer = csv.DictWriter(f, fieldnames=fieldnames)
             url = "https://www.openstreetmap.org/changeset/{}"
-
             csv_writer.writeheader()
-
-            # Initialize counters for summary
+            #Counters for summary
             changeset_count = 0
             edit_count = 0
             add_count = 0
             modify_count = 0
             delete_count = 0
             discussion_count = 0
-
-            #Count additions, changes, and deletions that are names
+            #Count additions, changes, and deletions of tags
             changeset_ids = []
-            for set in changesets:
-                changeset_ids.append(set.get('id'))
-
+            changeset_ids = [set.get('id') for set in changesets]
             tag_changes = count_tag_change(changeset_ids,json_dict,"way")
-
             #Initialize list of tag changes we found
             tag_change_totals = {}
             for tag in json_dict['tags']:
                 prefix = tag['tag']+'_'+tag['const']
                 for suffix in [' added',' modified',' deleted']:
                     tag_change_totals[prefix + suffix] = 0
-
 
             for item in changesets:
                 changeset = {'Username': item.get('user'),
@@ -543,12 +483,10 @@ def changeset_csv(output_file, changesets, name=None, summary=False):
                 for child in item:
                     if child.get('k') == 'comment':
                         changeset['Comment'] = child.get('v').encode('utf-8')
-
                 #General adds, modifies, deletes
                 changesetInformation = count_new_modified_deleted(changeset['ID'])
                 for key in changesetInformation:
                     changeset[key] = changesetInformation[key]
-
                 #Tag-specific adds, modifies, deletes
                 if item.get('id') in tag_changes:
                     these_tag_changes = tag_changes[item.get('id')]
@@ -559,17 +497,13 @@ def changeset_csv(output_file, changesets, name=None, summary=False):
                 else:
                     print('Empty return')
 
-
-
                 changeset_count += 1
                 add_count += changeset['Added']
                 modify_count += changeset['Modified']
                 delete_count += changeset['Deleted']
                 edit_count += int(item.get('changes_count'))
                 discussion_count += int(item.get('comments_count'))
-
                 csv_writer.writerow(changeset)
-
 
     except Exception as e:
         print("Error creating csv {}".format(e))
@@ -585,11 +519,8 @@ def changeset_csv(output_file, changesets, name=None, summary=False):
                 'Edits/Changeset': round((edit_count/changeset_count), 2)}
 
         #Include tag-change counts into the summary dictionary
-        for k,v in tag_change_totals.items():
-            summary_dict[k] = v
-
+        summary_dict.update(tag_change_totals)
         return summary_dict
-
     return True
 
 
