@@ -39,7 +39,7 @@ def create_specific(args):
     changesets = get_changesets(args.user, args.start_time, args.end_time, args.bbox)
     if len(changesets) < 1:
         sys.exit(1)
-    changeset_csv(out, changesets)
+    changeset_csv(out,{} , changesets)
     if args.excel:
         create_excel_file
 
@@ -48,19 +48,13 @@ def create_summary(args):
     changeset_total = 0
     edit_total = 0
     disc_total = 0
-    epc_total = 0  # edits per changeset
+    #edits per changeset
+    epc_total = 0
     add_total = 0
     mod_total = 0
     delete_total = 0
     summary = []
-    #TODO: Remove global, pass json_dict to functions called from
-    #within this one, instead
-    global json_dict
-
     tag_counts = {}
-    #each entry willl be a dictionary with <tag_combo>_added/modified/deleted:0
-    #e.g. {'name_highway added':0,'name_highway modified':0, 'name_highway deleted':0}
-
     with open(args.input_file, mode='r') as f:
         if args.input_file.endswith('.json'):
             json_dict = json.load(f)
@@ -68,25 +62,22 @@ def create_summary(args):
         elif args.input_file.endswith('.config'):
             users = csv.DictReader(f)
             json_dict['tags'] = [{"tag":"name","const":"highway"}]
-
         #Initialize tag change fields
         for tag in json_dict['tags']:
             prefix = tag['tag']+'_'+tag['const']
             for suffix in [' added',' modified',' deleted']:
                 tag_counts[prefix + suffix] = 0
 
-
         for user in users:
             print("Processing changesets for {} ...".format(str(user['name'])))
             out_file = os.path.join(args.output, str(user['name']) + '.csv')
             changesets = get_changesets(user['user_id'], args.start_time, args.end_time, args.bbox)
-
             # no point in doing anything if there aren't any changesets
             if len(changesets) < 1:
                 print("Warning: There were no changesets for {} within those parameters\n".format(str(user['name'])))
                 continue
 
-            counts = changeset_csv(out_file, changesets, name=str(user['name']), summary=True)
+            counts = changeset_csv(out_file, json_dict, changesets, name=str(user['name']), summary=True)
             counts['Editor'] = str(user['name'])
             summary.append(counts)
             changeset_total += counts['Changesets']
@@ -95,17 +86,14 @@ def create_summary(args):
             add_total += counts['Additions']
             mod_total += counts['Modifications']
             delete_total += counts['Deletions']
-
             for tag_change in tag_counts:
                 tag_counts[tag_change] += counts[tag_change]
 
             time.sleep(10)
             print("Processing changesets for {} ... Done\n".format(str(user['name'])))
 
-
     try:
         epc_total = round((edit_total / changeset_total), 2)
-
         summary_dict = {
             'Editor': 'TOTAL',
             'Changesets': changeset_total,
@@ -116,20 +104,18 @@ def create_summary(args):
             'Modifications': mod_total,
             'Deletions': delete_total
         }
-
         for tag_change in tag_counts:
             summary_dict[tag_change] = tag_counts[tag_change]
 
         summary.append(summary_dict)
-        summary_csv(args, os.path.join(args.output, "summary.csv"), summary)
+        summary_csv(args, os.path.join(args.output, "summary.csv"),json_dict, summary)
     except ZeroDivisionError:
        print("Warning: There were no changesets within those parameters")
 
 
-def summary_csv(args, output_file, summary):
+def summary_csv(args, output_file, json_dict, summary):
     with open(output_file, 'w') as f:
         fieldnames = ['Editor', 'Changesets', 'Edits', 'Discussions', 'Edits/Changeset', 'Additions', 'Modifications', 'Deletions']
-
         #Add field names for add/modify/delete for all tags we are checking
         for tag in json_dict['tags']:
             prefix = tag['tag']+'_'+tag['const']
@@ -138,12 +124,10 @@ def summary_csv(args, output_file, summary):
 
         csv_writer = csv.DictWriter(f, fieldnames=fieldnames)
         csv_writer.writeheader()
-
         csv_writer.writerows(summary)
 
     if args.excel:
         create_excel_file(args, os.path.dirname(os.path.realpath(output_file)))
-
 
 def create_weekly(args):
     today = date.today()
@@ -198,7 +182,6 @@ def overpass_status():
 
 def overpass_query(query):
     """Query the overpass servers. This may block for extended periods of time, depending upon the query"""
-
     session = requests.session()
     session.headers.update({'User-Agent': OVERPASS_USER_AGENT})
     cached_session = CacheControl(session)
@@ -209,7 +192,7 @@ def overpass_query(query):
     wait_time = overpass_status()
     loop = 0
     while (wait_time > 0):
-        print('Waiting for wait_time: ',wait_time)
+        print('Waiting for: ',wait_time, ' seconds')
         time.sleep(wait_time)
         wait_time = overpass_status()
         loop += 1
@@ -228,7 +211,6 @@ def overpass_query(query):
         raise ValueError("Bad Request: {}".format(query))
 
     xml = response.text
-
     if (response.status_code != requests.codes.ok):
         raise ValueError("We got a bad response code of {} for {} which resulted in:\r\n{}".format(response.status_code, query, xml))
     content_type = response.headers.get('content-type')
@@ -241,10 +223,8 @@ def overpass_query(query):
 
 def count_tag_change(changesets,info_json,osm_obj_type='*'):
     tags_to_check = info_json['tags']
-    #TODO:
-    #We could change this to: {<changeset_id>:{<tag_to_check>:[<objects>],'add'':0,'modify':0,'delete':0}}
-    #Then we could just get len()s of objs_modified, objs_created, objs_deleted
-    #Formatted as {<changeset_id>:{<tag_constant>:[<objects>]}}
+    #TODO: include count_new_modified_deleted data in this dict
+    #{<changeset_id>:{<tag_to_check>:[<objects>],'add'':0,'modify':0,'delete':0}}
     objects_by_changeset = {}
     #Get all objects touched in each changeset
     #We go by changeset, then by tag
@@ -302,9 +282,8 @@ def count_tag_change(changesets,info_json,osm_obj_type='*'):
     query_timeout = "[timeout: {seconds}];".format(seconds=int(query_count/5))
     testing_query_timeout= "[timeout: {seconds}];".format(seconds=250)
     query = query_output + query_timeout + query_parts
-    print('Query count is: ',query_count)
+    print('Querying: ',query_count, ' objects.')
     #Submit the query
-    print('Query submitted')
     try:
         query_json = overpass_query(query)
     except Exception:
@@ -433,7 +412,7 @@ def get_changesets(user=None, start_time=None, end_time=None, bbox=None):
     return changesets
 
 
-def changeset_csv(output_file, changesets, name=None, summary=False):
+def changeset_csv(output_file, json_dict, changesets, name=None, summary=False):
     try:
         with open(output_file, 'w') as f:
             fieldnames = ['Username', 'ID', 'Comment', 'Open', 'Created at', 'Closed at', 'Changes', 'Added', 'Modified', 'Deleted']
@@ -620,7 +599,6 @@ def parse(item):
     return item
 
 OVERPASS_USER_AGENT = "Python/Changesets2csv/0.4.1 (https://github.com/KaartGroup/Changesets2CSV)"
-json_dict = {}
 
 
 if __name__ == "__main__":
