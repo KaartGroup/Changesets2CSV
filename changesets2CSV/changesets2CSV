@@ -21,7 +21,6 @@ import sys
 import glob
 import re
 import time
-import ssl
 from xlsxwriter.workbook import Workbook
 import json
 
@@ -39,7 +38,7 @@ def create_specific(args):
     changesets = get_changesets(args.user, args.start_time, args.end_time, args.bbox)
     if len(changesets) < 1:
         sys.exit(1)
-    changeset_csv(out,{} , changesets)
+    changeset_csv(out, {}, changesets)
     if args.excel:
         create_excel_file
 
@@ -61,11 +60,11 @@ def create_summary(args):
             users = json_dict['users']
         elif args.input_file.endswith('.config'):
             users = csv.DictReader(f)
-            json_dict['tags'] = [{"tag":"name","const":"highway"}]
+            json_dict['tags'] = [{"tag": "name", "const": "highway"}]
         # Initialize tag change fields
         for tag in json_dict['tags']:
             prefix = tag['tag']+'_'+tag['const']
-            for suffix in [' added',' modified',' deleted']:
+            for suffix in [' added', ' modified', ' deleted']:
                 tag_counts[prefix + suffix] = 0
 
         for user in users:
@@ -108,9 +107,9 @@ def create_summary(args):
             summary_dict[tag_change] = tag_counts[tag_change]
 
         summary.append(summary_dict)
-        summary_csv(args, os.path.join(args.output, "summary.csv"),json_dict, summary)
+        summary_csv(args, os.path.join(args.output, "summary.csv"), json_dict, summary)
     except ZeroDivisionError:
-       print("Warning: There were no changesets within those parameters")
+        print("Warning: There were no changesets within those parameters")
 
 
 def summary_csv(args, output_file, json_dict, summary):
@@ -119,7 +118,7 @@ def summary_csv(args, output_file, json_dict, summary):
         # Add field names for add/modify/delete for all tags we are checking
         for tag in json_dict['tags']:
             prefix = tag['tag']+'_'+tag['const']
-            for suffix in [' added',' modified',' deleted']:
+            for suffix in [' added', ' modified', ' deleted']:
                 fieldnames.append(prefix + suffix)
 
         csv_writer = csv.DictWriter(f, fieldnames=fieldnames)
@@ -128,6 +127,7 @@ def summary_csv(args, output_file, json_dict, summary):
 
     if args.excel:
         create_excel_file(args, os.path.dirname(os.path.realpath(output_file)))
+
 
 def create_weekly(args):
     today = date.today()
@@ -138,6 +138,7 @@ def create_weekly(args):
     args.start_time = str(start)
     args.end_time = str(end)
     create_summary(args)
+
 
 def count_new_modified_deleted(changeset):
     """Get the new, modified, or deleted objects in a changeset
@@ -153,6 +154,7 @@ def count_new_modified_deleted(changeset):
     newModifiedDeleted['Modified'] = len(root.findall('modify'))
     newModifiedDeleted['Deleted'] = len(root.findall('delete'))
     return newModifiedDeleted
+
 
 def overpass_status():
     """Get the overpass status -- this returns an int with the time to wait"""
@@ -180,6 +182,7 @@ def overpass_status():
         return max(parsed_response['wait_time'])
     return wait_time
 
+
 def overpass_query(query):
     """Query the overpass servers. This may block for extended periods of time, depending upon the query"""
     session = requests.session()
@@ -192,7 +195,7 @@ def overpass_query(query):
     wait_time = overpass_status()
     loop = 0
     while (wait_time > 0):
-        print('Waiting for: ',wait_time, ' seconds')
+        print('Waiting for: ', wait_time, ' seconds')
         time.sleep(wait_time)
         wait_time = overpass_status()
         loop += 1
@@ -215,13 +218,14 @@ def overpass_query(query):
         raise ValueError("We got a bad response code of {} for {} which resulted in:\r\n{}".format(response.status_code, query, xml))
     content_type = response.headers.get('content-type')
     if content_type == 'application/osm3s+xml':
-        return ET.ElementTree(ElementTree.fromstring(xml))
+        return ET.ElementTree(ET.fromstring(xml))
     elif content_type == 'application/json':
         return response.json()
     else:
         raise ValueError("Unexpected content type ({}) from the query: {}".format(content_type, query))
 
-def count_tag_change(changesets,info_json,osm_obj_type='*'):
+
+def count_tag_change(changesets, info_json, osm_obj_type='*'):
     tags_to_check = info_json['tags']
     # TODO: include count_new_modified_deleted data in this dict
     # {<changeset_id>:{<tag_to_check>:[<objects>],'add'':0,'modify':0,'delete':0}}
@@ -245,18 +249,14 @@ def count_tag_change(changesets,info_json,osm_obj_type='*'):
             # If we're using a constant tag
             if const_tag != "none":
                 # Retrieve all objects that have the tags we're looking for
-                objs_modified = root.findall("./modify/{osm_obj_type}/tag[@k='{const_tag}']..".format(const_tag=const_tag,osm_obj_type=osm_obj_type))
-                objs_created = root.findall("./create/{osm_obj_type}/tag[@k='{const_tag}']..".format(const_tag=const_tag,osm_obj_type=osm_obj_type))
-                objs_deleted = root.findall("./delete/{osm_obj_type}/tag[@k='{const_tag}']..".format(const_tag=const_tag,osm_obj_type=osm_obj_type))
+                objs_modified = root.findall("./modify/{osm_obj_type}/tag[@k='{const_tag}']..".format(const_tag=const_tag, osm_obj_type=osm_obj_type))
             # If we only care about the tag being changed
             else:
                 # Retrieve all objects that have the tags we're looking for
                 objs_modified = root.findall("./modify/{osm_obj_type}".format(osm_obj_type=osm_obj_type))
-                objs_created = root.findall("./create/{osm_obj_type}".format(osm_obj_type=osm_obj_type))
-                objs_deleted = root.findall("./delete/{osm_obj_type}".format(osm_obj_type=osm_obj_type))
             # Store each modified object's data in our list, new_ver_objects, as dictionaries
             for obj in objs_modified:
-                this_obj = {"id":obj.attrib['id'],"version":int(obj.attrib['version'])}
+                this_obj = {"id": obj.attrib['id'], "version": int(obj.attrib['version'])}
                 tag_elements = obj.findall("tag")
                 for tag_element in tag_elements:
                     this_obj[tag_element.attrib['k']] = tag_element.attrib['v']
@@ -274,15 +274,16 @@ def count_tag_change(changesets,info_json,osm_obj_type='*'):
             # Build each query part for each object
             for obj in objects_by_changeset[this_set][this_tag]:
                 if obj["version"] > 1:
-                    query_part = "timeline({osm_obj_type}, {osm_id}, {prev_version}); for (t['created']) {{ retro(_.val) {{ {osm_obj_type}(id:{osm_id}); out meta;}} }}"\
-                    .format(osm_obj_type = osm_obj_type, osm_id = obj["id"],prev_version = int(obj["version"])-1)
+                    query_part = "timeline({osm_obj_type}, {osm_id}, {prev_version});\
+                    for (t['created']) {{ retro(_.val) {{ {osm_obj_type}(id:{osm_id});\
+                    out meta;}} }}"\
+                    .format(osm_obj_type=osm_obj_type, osm_id=obj["id"], prev_version=int(obj["version"])-1)
                     query_parts += query_part
                     query_count += 1
 
     query_timeout = "[timeout: {seconds}];".format(seconds=int(query_count/5))
-    testing_query_timeout= "[timeout: {seconds}];".format(seconds=250)
     query = query_output + query_timeout + query_parts
-    print('Querying: ',query_count, ' objects.')
+    print('Querying: ', query_count, ' objects.')
     # Submit the query
     try:
         query_json = overpass_query(query)
@@ -295,7 +296,7 @@ def count_tag_change(changesets,info_json,osm_obj_type='*'):
     old_version_objects = {}
     for element in query_json["elements"]:
         this_obj_id = str(element['id'])
-        this_obj = {"version":element['version']}
+        this_obj = {"version": element['version']}
         # Add object tags, if they exist on this object
         if 'tags' in element:
             for key, value in element['tags'].items():
@@ -325,10 +326,10 @@ def count_tag_change(changesets,info_json,osm_obj_type='*'):
     for this_changeset in old_objects_by_changeset:
         changes_by_changeset[this_changeset] = {}
         for this_tag in old_objects_by_changeset[this_changeset]:
-            add_key = this_tag +' added'
+            add_key = this_tag + ' added'
             modify_key = this_tag + ' modified'
             delete_key = this_tag + ' deleted'
-            changes_by_changeset[this_changeset][this_tag] = {add_key:0,modify_key:0,delete_key:0}
+            changes_by_changeset[this_changeset][this_tag] = {add_key: 0, modify_key: 0, delete_key: 0}
 
     compare_index = 0
     tag_index = 0
@@ -343,18 +344,18 @@ def count_tag_change(changesets,info_json,osm_obj_type='*'):
                 if str(old_obj['id']) != new_obj['id']:
                     print('ERROR: ID MISTMATCH')
                 old_val = old_obj.get(this_tag_to_check, None)
-                new_val = new_obj.get(this_tag_to_check,None)
+                new_val = new_obj.get(this_tag_to_check, None)
                 if new_val != old_val:
                     if old_val is None:
-                        changes_by_changeset[this_changeset][this_tag][this_tag +' added'] += 1
+                        changes_by_changeset[this_changeset][this_tag][this_tag + ' added'] += 1
                     elif new_val is None:
-                        changes_by_changeset[this_changeset][this_tag][this_tag +' deleted'] += 1
+                        changes_by_changeset[this_changeset][this_tag][this_tag + ' deleted'] += 1
                     else:
-                        changes_by_changeset[this_changeset][this_tag][this_tag +' modified'] += 1
-
+                        changes_by_changeset[this_changeset][this_tag][this_tag + ' modified'] += 1
                 compare_index += 1
             tag_index += 1
     return changes_by_changeset
+
 
 def get_changesets(user=None, start_time=None, end_time=None, bbox=None):
     """Get the changesets for a user between start_time and end_time with no bbox
@@ -387,7 +388,6 @@ def get_changesets(user=None, start_time=None, end_time=None, bbox=None):
         query_params['bbox'] = ','.join(bbox)
 
     changesets = []
-
     try:
         api_url = "https://api.openstreetmap.org/api/0.6/changesets"
         session = CacheControl(requests.session())
@@ -397,7 +397,7 @@ def get_changesets(user=None, start_time=None, end_time=None, bbox=None):
         changesets.extend(sets)
         dateFormat = '%Y-%m-%dT%H:%M:%SZ'
         while len(sets) >= 100:
-            new_end = datetime.strptime(sets[-1].get('closed_at'), dateFormat) - timedelta(0,5)
+            new_end = datetime.strptime(sets[-1].get('closed_at'), dateFormat) - timedelta(0, 5)
             new_end = new_end.strftime(dateFormat)
             start_time = "1970-01-01" if not start_time else start_time
             query_params['time'] = ','.join([start_time, new_end])
@@ -418,12 +418,12 @@ def changeset_csv(output_file, json_dict, changesets, name=None, summary=False):
             fieldnames = ['Username', 'ID', 'Comment', 'Open', 'Created at', 'Closed at', 'Changes', 'Added', 'Modified', 'Deleted']
             # Add fields for tag add,modify,delete
             # If we didn't pass a .json, default to just names of highways
-            if summary == False:
-                json_dict['tags']=[{"tag":"name","const":"highway"}]
+            if not summary:
+                json_dict['tags'] = [{"tag": "name", "const": "highway"}]
 
             for tag in json_dict['tags']:
                 prefix = tag['tag']+'_'+tag['const']
-                for suffix in [' added',' modified',' deleted']:
+                for suffix in [' added', ' modified', ' deleted']:
                     fieldnames.append(prefix + suffix)
 
             fieldnames.extend(['Discussions', 'URL'])
@@ -440,12 +440,12 @@ def changeset_csv(output_file, json_dict, changesets, name=None, summary=False):
             # Count additions, changes, and deletions of tags
             changeset_ids = []
             changeset_ids = [set.get('id') for set in changesets]
-            tag_changes = count_tag_change(changeset_ids,json_dict,"way")
+            tag_changes = count_tag_change(changeset_ids, json_dict, "way")
             # Initialize list of tag changes we found
             tag_change_totals = {}
             for tag in json_dict['tags']:
                 prefix = tag['tag']+'_'+tag['const']
-                for suffix in [' added',' modified',' deleted']:
+                for suffix in [' added', ' modified', ' deleted']:
                     tag_change_totals[prefix + suffix] = 0
 
             for item in changesets:
@@ -490,12 +490,12 @@ def changeset_csv(output_file, json_dict, changesets, name=None, summary=False):
 
     if summary:
         summary_dict = {'Changesets': changeset_count,
-                'Edits': edit_count,
-                'Additions': add_count,
-                'Modifications': modify_count,
-                'Deletions': delete_count,
-                'Discussions': discussion_count,
-                'Edits/Changeset': round((edit_count/changeset_count), 2)}
+                        'Edits': edit_count,
+                        'Additions': add_count,
+                        'Modifications': modify_count,
+                        'Deletions': delete_count,
+                        'Discussions': discussion_count,
+                        'Edits/Changeset': round((edit_count/changeset_count), 2)}
 
         # Include tag-change counts into the summary dictionary
         summary_dict.update(tag_change_totals)
@@ -524,13 +524,13 @@ def get_args():
     specific.set_defaults(func=create_specific, which="specific")
 
     summary = subparsers.add_parser("summary", help="Create a summary of changesets", description="Create a summary for a specified time range.")
-    summary.add_argument('input_file',help="Path of the .json file of users and tags")
+    summary.add_argument('input_file', help="Path of the .json file of users and tags")
     summary.add_argument('-s', '--start_time', nargs=1, type=valid_date, help="The start time of the window to query (YYYY-MM-DD).")
     summary.add_argument('-e', '--end_time', nargs=1, type=valid_date, help="The end time of the window to query (YYYY-MM-DD).")
     summary.set_defaults(func=create_summary, which="summary")
 
     weekly = subparsers.add_parser("weekly", help="Create a weekly summary of changesets")
-    weekly.add_argument('input_file',help="Path of the .json file of users and tags")
+    weekly.add_argument('input_file', help="Path of the .json file of users and tags")
     weekly.set_defaults(func=create_weekly, which="weekly")
 
     args = parser.parse_args()
@@ -598,9 +598,8 @@ def parse(item):
         pass
     return item
 
+
 OVERPASS_USER_AGENT = "Python/Changesets2csv/0.4.1 (https://github.com/KaartGroup/Changesets2CSV)"
-
-
 if __name__ == "__main__":
 
     ''' Vamanos '''
