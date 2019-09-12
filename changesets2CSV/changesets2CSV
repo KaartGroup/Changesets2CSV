@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+# !/usr/bin/env python3
 '''
 changesets2CSV
 
@@ -48,7 +48,7 @@ def create_summary(args):
     changeset_total = 0
     edit_total = 0
     disc_total = 0
-    #edits per changeset
+    # edits per changeset
     epc_total = 0
     add_total = 0
     mod_total = 0
@@ -62,7 +62,7 @@ def create_summary(args):
         elif args.input_file.endswith('.config'):
             users = csv.DictReader(f)
             json_dict['tags'] = [{"tag":"name","const":"highway"}]
-        #Initialize tag change fields
+        # Initialize tag change fields
         for tag in json_dict['tags']:
             prefix = tag['tag']+'_'+tag['const']
             for suffix in [' added',' modified',' deleted']:
@@ -116,7 +116,7 @@ def create_summary(args):
 def summary_csv(args, output_file, json_dict, summary):
     with open(output_file, 'w') as f:
         fieldnames = ['Editor', 'Changesets', 'Edits', 'Discussions', 'Edits/Changeset', 'Additions', 'Modifications', 'Deletions']
-        #Add field names for add/modify/delete for all tags we are checking
+        # Add field names for add/modify/delete for all tags we are checking
         for tag in json_dict['tags']:
             prefix = tag['tag']+'_'+tag['const']
             for suffix in [' added',' modified',' deleted']:
@@ -176,7 +176,7 @@ def overpass_status():
         parsed_response['slots_available'] = 0
     wait_time = 0
     if parsed_response['rate_limit'] - parsed_response['slots_available'] >= 2 and len(parsed_response['wait_time']) > 0:
-        #We use max to ensure that there is always an open slot
+        # We use max to ensure that there is always an open slot
         return max(parsed_response['wait_time'])
     return wait_time
 
@@ -223,38 +223,38 @@ def overpass_query(query):
 
 def count_tag_change(changesets,info_json,osm_obj_type='*'):
     tags_to_check = info_json['tags']
-    #TODO: include count_new_modified_deleted data in this dict
-    #{<changeset_id>:{<tag_to_check>:[<objects>],'add'':0,'modify':0,'delete':0}}
+    # TODO: include count_new_modified_deleted data in this dict
+    # {<changeset_id>:{<tag_to_check>:[<objects>],'add'':0,'modify':0,'delete':0}}
     objects_by_changeset = {}
-    #Get all objects touched in each changeset
-    #We go by changeset, then by tag
+    # Get all objects touched in each changeset
+    # We go by changeset, then by tag
     for changeset in changesets:
-        #New changeset in list
+        # New changeset in list
         objects_by_changeset[changeset] = {}
-        #Request XML for each changeset
+        # Request XML for each changeset
         api_url = "https://www.openstreetmap.org/api/0.6/changeset/{changeset}/download".format(changeset=changeset)
         session = CacheControl(requests.session())
         result = session.get(api_url).text
         root = ET.fromstring(result)
-        #If we are looking for a constant tag
+        # If we are looking for a constant tag
         for this_tag in tags_to_check:
             check_tag = this_tag['tag']
             const_tag = this_tag['const']
-            #TODO: Restructure this list into a dictionary
+            # TODO: Restructure this list into a dictionary
             objects_by_changeset[changeset][check_tag+'_'+const_tag] = []
-            #If we're using a constant tag
+            # If we're using a constant tag
             if const_tag != "none":
-                #Retrieve all objects that have the tags we're looking for
+                # Retrieve all objects that have the tags we're looking for
                 objs_modified = root.findall("./modify/{osm_obj_type}/tag[@k='{const_tag}']..".format(const_tag=const_tag,osm_obj_type=osm_obj_type))
                 objs_created = root.findall("./create/{osm_obj_type}/tag[@k='{const_tag}']..".format(const_tag=const_tag,osm_obj_type=osm_obj_type))
                 objs_deleted = root.findall("./delete/{osm_obj_type}/tag[@k='{const_tag}']..".format(const_tag=const_tag,osm_obj_type=osm_obj_type))
-            #If we only care about the tag being changed
+            # If we only care about the tag being changed
             else:
-                #Retrieve all objects that have the tags we're looking for
+                # Retrieve all objects that have the tags we're looking for
                 objs_modified = root.findall("./modify/{osm_obj_type}".format(osm_obj_type=osm_obj_type))
                 objs_created = root.findall("./create/{osm_obj_type}".format(osm_obj_type=osm_obj_type))
                 objs_deleted = root.findall("./delete/{osm_obj_type}".format(osm_obj_type=osm_obj_type))
-            #Store each modified object's data in our list, new_ver_objects, as dictionaries
+            # Store each modified object's data in our list, new_ver_objects, as dictionaries
             for obj in objs_modified:
                 this_obj = {"id":obj.attrib['id'],"version":int(obj.attrib['version'])}
                 tag_elements = obj.findall("tag")
@@ -263,15 +263,15 @@ def count_tag_change(changesets,info_json,osm_obj_type='*'):
                 objects_by_changeset[changeset][check_tag+'_'+const_tag].append(this_obj)
 
     print('Objects compiled')
-    #TODO: Do not query the same version of the same object more than once
-    #We can construct a dictionary of versions and IDs from old_objects_by_changeset
-    #Build query to get previous versions of all objects in new_ver_objects
+    # TODO: Do not query the same version of the same object more than once
+    # We can construct a dictionary of versions and IDs from old_objects_by_changeset
+    # Build query to get previous versions of all objects in new_ver_objects
     query_output = "[out:json]"
     query_parts = ""
     query_count = 0
     for this_set in objects_by_changeset:
         for this_tag in objects_by_changeset[this_set]:
-            #Build each query part for each object
+            # Build each query part for each object
             for obj in objects_by_changeset[this_set][this_tag]:
                 if obj["version"] > 1:
                     query_part = "timeline({osm_obj_type}, {osm_id}, {prev_version}); for (t['created']) {{ retro(_.val) {{ {osm_obj_type}(id:{osm_id}); out meta;}} }}"\
@@ -283,20 +283,20 @@ def count_tag_change(changesets,info_json,osm_obj_type='*'):
     testing_query_timeout= "[timeout: {seconds}];".format(seconds=250)
     query = query_output + query_timeout + query_parts
     print('Querying: ',query_count, ' objects.')
-    #Submit the query
+    # Submit the query
     try:
         query_json = overpass_query(query)
     except Exception:
         print(Exception.args)
     print('Query result received')
-    #We go by changeset, then tag
+    # We go by changeset, then tag
     old_objects_by_changeset = {}
-    #Iterate through query result elements
+    # Iterate through query result elements
     old_version_objects = {}
     for element in query_json["elements"]:
         this_obj_id = str(element['id'])
         this_obj = {"version":element['version']}
-        #Add object tags, if they exist on this object
+        # Add object tags, if they exist on this object
         if 'tags' in element:
             for key, value in element['tags'].items():
                 this_obj[key] = value
@@ -308,7 +308,7 @@ def count_tag_change(changesets,info_json,osm_obj_type='*'):
     for changeset in objects_by_changeset:
         old_objects_by_changeset[changeset] = {}
         for tag in objects_by_changeset[changeset]:
-            #TODO: Restructure this list into a dictionary
+            # TODO: Restructure this list into a dictionary
             old_objects_by_changeset[changeset][tag] = []
             for this_obj in objects_by_changeset[changeset][tag]:
                 this_obj_id = str(this_obj['id'])
@@ -319,9 +319,9 @@ def count_tag_change(changesets,info_json,osm_obj_type='*'):
                     objects_checked += 1
                 else:
                     no_add_count += 1
-    #See what values changed
+    # See what values changed
     changes_by_changeset = {}
-    #Initialize change counts for all sets
+    # Initialize change counts for all sets
     for this_changeset in old_objects_by_changeset:
         changes_by_changeset[this_changeset] = {}
         for this_tag in old_objects_by_changeset[this_changeset]:
@@ -416,8 +416,8 @@ def changeset_csv(output_file, json_dict, changesets, name=None, summary=False):
     try:
         with open(output_file, 'w') as f:
             fieldnames = ['Username', 'ID', 'Comment', 'Open', 'Created at', 'Closed at', 'Changes', 'Added', 'Modified', 'Deleted']
-            #Add fields for tag add,modify,delete
-            #If we didn't pass a .json, default to just names of highways
+            # Add fields for tag add,modify,delete
+            # If we didn't pass a .json, default to just names of highways
             if summary == False:
                 json_dict['tags']=[{"tag":"name","const":"highway"}]
 
@@ -430,18 +430,18 @@ def changeset_csv(output_file, json_dict, changesets, name=None, summary=False):
             csv_writer = csv.DictWriter(f, fieldnames=fieldnames)
             url = "https://www.openstreetmap.org/changeset/{}"
             csv_writer.writeheader()
-            #Counters for summary
+            # Counters for summary
             changeset_count = 0
             edit_count = 0
             add_count = 0
             modify_count = 0
             delete_count = 0
             discussion_count = 0
-            #Count additions, changes, and deletions of tags
+            # Count additions, changes, and deletions of tags
             changeset_ids = []
             changeset_ids = [set.get('id') for set in changesets]
             tag_changes = count_tag_change(changeset_ids,json_dict,"way")
-            #Initialize list of tag changes we found
+            # Initialize list of tag changes we found
             tag_change_totals = {}
             for tag in json_dict['tags']:
                 prefix = tag['tag']+'_'+tag['const']
@@ -462,11 +462,11 @@ def changeset_csv(output_file, json_dict, changesets, name=None, summary=False):
                 for child in item:
                     if child.get('k') == 'comment':
                         changeset['Comment'] = child.get('v').encode('utf-8')
-                #General adds, modifies, deletes
+                # General adds, modifies, deletes
                 changesetInformation = count_new_modified_deleted(changeset['ID'])
                 for key in changesetInformation:
                     changeset[key] = changesetInformation[key]
-                #Tag-specific adds, modifies, deletes
+                # Tag-specific adds, modifies, deletes
                 if item.get('id') in tag_changes:
                     these_tag_changes = tag_changes[item.get('id')]
                     for this_tag in these_tag_changes:
@@ -497,7 +497,7 @@ def changeset_csv(output_file, json_dict, changesets, name=None, summary=False):
                 'Discussions': discussion_count,
                 'Edits/Changeset': round((edit_count/changeset_count), 2)}
 
-        #Include tag-change counts into the summary dictionary
+        # Include tag-change counts into the summary dictionary
         summary_dict.update(tag_change_totals)
         return summary_dict
     return True
@@ -507,11 +507,11 @@ def get_args():
     parser = argparse.ArgumentParser(usage='''changesets2CSV [-h] [-b min_lon min_lat max_lon max_lat] [-v] <command>
     ''', description="Commands for creating changeset CSV's")
     parser.add_argument('-t', '--test', help="Run tests to make certain that everything works", action='store_true')
-    #parser.add_argument('-v','--version',help="Print version number",action = 'store_true')
+    # parser.add_argument('-v','--version',help="Print version number",action = 'store_true')
     parser.add_argument('--bbox', nargs=4,
                         help="The bbox to query changesets. Values separated by spaces.",
                         metavar=('min_lon', 'min_lat', 'max_lon', 'max_lat'))
-    # parser.add_argument('-v', '--verbose', action='store_true') #nothing to verbose yet
+    # parser.add_argument('-v', '--verbose', action='store_true') # nothing to verbose yet
     parser.add_argument('-o', '--output', help="Location to create .csv files (default is current location)", default=os.getcwd())
     parser.add_argument('-x', '--excel', help="Create a .xlsx file.", action='store_true')
     parser.set_defaults(which='main')
