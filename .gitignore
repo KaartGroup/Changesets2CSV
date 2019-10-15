@@ -10,10 +10,6 @@ __pycache__/
 *.csv
 *.xlsx
 
-
-#jsons
-*.json
-
 # Distribution / packaging
 .Python
 build/
