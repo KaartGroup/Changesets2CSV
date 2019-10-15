@@ -52,4 +52,4 @@ commands:
 
 
 ### Example
-`changesets2CSV -x weekly ../example.config`
+`changesets2CSV -x weekly example.json`
