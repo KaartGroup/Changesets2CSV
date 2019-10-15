@@ -14,7 +14,7 @@ Note: You may have to run the above in a `virtualenv` or as `sudo`
 ## Usage
 ```
 usage: changesets2CSV [-h] [-b min_lon min_lat max_lon max_lat] [-v] <command>
-    
+
 
 Commands for creating changeset CSV's
 
@@ -35,12 +35,21 @@ commands:
     weekly              Create a weekly summary of changesets
 ```
 
-#### User Config File Example
+#### User JSON File Example ()
 ```
-name,user_id
-Zack,5423893
-Zack_Import,8884770
+{"tags":[
+    {"tag":"name","const":"highway"},
+    {"tag":"surface","const":"highway"}
+],
+"users":[
+    {"user_id":"3778777","name":"Baconcrisp"},
+    {"user_id":"4240913","name":"Corban8"}
+]}
+
+.configs are deprecated and do not allow for searching of specific tags
 ```
+
+
 
 ### Example
 `changesets2CSV -x weekly ../example.config`
