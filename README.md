@@ -45,9 +45,8 @@ commands:
     {"user_id":"3778777","name":"Baconcrisp"},
     {"user_id":"4240913","name":"Corban8"}
 ]}
-
-.configs are deprecated and do not allow for searching of specific tags
 ```
+Note: .configs are deprecated and do not allow for searching of specific tags
 
 
 
