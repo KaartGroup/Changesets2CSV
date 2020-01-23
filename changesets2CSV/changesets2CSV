@@ -1,4 +1,4 @@
-# !/usr/bin/env python3
+#!/usr/bin/env python3
 """
 changesets2CSV
 
@@ -55,6 +55,7 @@ def create_summary(args):
     summary = []
     tag_counts = {}
     with open(args.input_file, mode="r") as f:
+        json_dict = {}
         if args.input_file.endswith(".json"):
             json_dict = json.load(f)
             users = json_dict["users"]
@@ -332,7 +333,7 @@ def count_tag_change(changesets, info_json, osm_obj_type="*"):
                     query_parts += query_part
                     query_count += 1
 
-    query_timeout = "[timeout: {seconds}];".format(seconds=int(query_count / 5))
+    query_timeout = "[timeout: {seconds}];".format(seconds=max(int(query_count / 100), 25))
     query = query_output + query_timeout + query_parts
     print("Querying: ", query_count, " objects.")
     # Submit the query
