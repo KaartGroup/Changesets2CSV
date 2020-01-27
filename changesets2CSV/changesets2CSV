@@ -333,7 +333,9 @@ def count_tag_change(changesets, info_json, osm_obj_type="*"):
                     query_parts += query_part
                     query_count += 1
 
-    query_timeout = "[timeout: {seconds}];".format(seconds=max(int(query_count / 100), 25))
+    query_timeout = "[timeout: {seconds}];".format(
+        seconds=max(int(query_count / 500), 25)
+    )
     query = query_output + query_timeout + query_parts
     print("Querying: ", query_count, " objects.")
     # Submit the query
@@ -400,7 +402,11 @@ def count_tag_change(changesets, info_json, osm_obj_type="*"):
                 ]
                 new_obj = objects_by_changeset[this_changeset][this_tag][compare_index]
                 if str(old_obj["id"]) != new_obj["id"]:
-                    print("ERROR: ID MISTMATCH")
+                    print(
+                        "ERROR: ID MISMATCH: {} vs. {}".format(
+                            old_obj["id"], new_obj["id"]
+                        )
+                    )
                 old_val = old_obj.get(this_tag_to_check, None)
                 new_val = new_obj.get(this_tag_to_check, None)
                 if new_val != old_val:
