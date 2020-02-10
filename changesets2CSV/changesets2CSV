@@ -63,6 +63,8 @@ def create_summary(args):
             users = csv.DictReader(f)
             json_dict["tags"] = [{"tag": "name", "const": "highway"}]
         # Initialize tag change fields
+        if "tags" not in json_dict:
+            json_dict["tags"] = []
         for tag in json_dict["tags"]:
             prefix = tag["tag"] + "_" + tag["const"]
             for suffix in [" added", " modified", " deleted"]:
