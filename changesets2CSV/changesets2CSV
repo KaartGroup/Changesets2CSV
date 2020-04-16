@@ -270,6 +270,7 @@ def count_tag_change(changesets, info_json, osm_obj_type="*"):
     objects_by_changeset = {}
     # Get all objects touched in each changeset
     # We go by changeset, then by tag
+    session = CacheControl(requests.session())
     for changeset in changesets:
         # New changeset in list
         objects_by_changeset[changeset] = {}
@@ -277,8 +278,12 @@ def count_tag_change(changesets, info_json, osm_obj_type="*"):
         api_url = "https://www.openstreetmap.org/api/0.6/changeset/{changeset}/download".format(
             changeset=changeset
         )
-        session = CacheControl(requests.session())
-        result = session.get(api_url).text
+        try:
+            result = session.get(api_url).text
+        except requests.exceptions.ConnectionError as e:
+            print(e)
+            time.sleep(60)
+            result = session.get(api_url).text
         root = ET.fromstring(result)
         # If we are looking for a constant tag
         for this_tag in tags_to_check:
